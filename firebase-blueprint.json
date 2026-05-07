@@ -1,0 +1,142 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System administrator or viewer",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["super_admin", "admin", "viewer"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Detailed employee data",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string" },
+        "nip": { "type": "string" },
+        "unitPelaksana": { "type": "string" },
+        "subUnit": { "type": "string" },
+        "jabatanLengkap": { "type": "string" },
+        "personGrade": { "type": "string" },
+        "positionGrade": { "type": "string" },
+        "tanggalMasuk": { "type": "string", "format": "date" },
+        "tanggalCalonPegawai": { "type": "string", "format": "date" },
+        "emailKorporat": { "type": "string", "format": "email" },
+        "alamatLengkap": { "type": "string" },
+        "tanggalLahir": { "type": "string", "format": "date" },
+        "tanggalMulaiJabatan": { "type": "string", "format": "date" },
+        "tanggalPengangkatan": { "type": "string", "format": "date" },
+        "tanggalBerakhirBekerja": { "type": "string", "format": "date" },
+        "tanggalPensiunNormal": { "type": "string", "format": "date" },
+        "jenisKelamin": { "type": "string", "enum": ["Laki-laki", "Perempuan"] },
+        "agama": { "type": "string" },
+        "noTelepon": { "type": "string" },
+        "noNPWP": { "type": "string" },
+        "noKTP": { "type": "string" },
+        "noBPJSKesehatan": { "type": "string" },
+        "noBPJSKetenagakerjaan": { "type": "string" },
+        "pendidikanTerakhir": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pegawai Organik", "Pegawai Tugas Khusus", "Tenaga Alih Daya"] },
+        "perusahaan": { "type": "string", "enum": ["PT PLN Nusantara Power", "PT PLN (Persero)", "PT PLN Paguntaka Cahaya Nusantara", "PT Mitra Karya Prima"] },
+        "photoUrl": { "type": "string" },
+        "dossierUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nip", "fullName", "unitPelaksana", "status", "perusahaan"]
+    },
+    "Training": {
+      "title": "Training",
+      "description": "Employee training history",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "employeeId": { "type": "string" }
+      }
+    },
+    "Certification": {
+      "title": "Certification",
+      "description": "Employee certification history",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "issueDate": { "type": "string", "format": "date" },
+        "expiryDate": { "type": "string", "format": "date" },
+        "certificateUrl": { "type": "string" },
+        "employeeId": { "type": "string" }
+      }
+    },
+    "Machine": {
+      "title": "Machine",
+      "description": "Generator machine details",
+      "type": "object",
+      "properties": {
+        "namaMesin": { "type": "string" },
+        "typeMesin": { "type": "string" },
+        "nomorSeri": { "type": "string" },
+        "dayaMampuNominal": { "type": "number" },
+        "bebanPuncak": { "type": "number" },
+        "jenisMesin": { "type": "string", "enum": ["PLTD", "PLTG", "PLTU"] },
+        "sistem": { "type": "string", "enum": ["Sistem Khatulistiwa", "Sistem Ketapang", "Sistem Putusibau"] }
+      }
+    },
+    "Unit": {
+      "title": "Unit",
+      "description": "PLN NP Units",
+      "type": "object",
+      "properties": {
+        "namaUnitLayananPusatListrik": { "type": "string" },
+        "alamatLengkap": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "photoUrl": { "type": "string" },
+        "mesin": { 
+          "type": "array"
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["namaUnitLayananPusatListrik", "alamatLengkap"]
+    },
+    "Company": {
+      "title": "Company",
+      "description": "PLN NP Group Companies",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "System users and their roles"
+    },
+    "employees": {
+      "schema": "Employee",
+      "description": "Master employee data"
+    },
+    "employees/{employeeId}/trainings": {
+      "schema": "Training",
+      "description": "Trainings for a specific employee"
+    },
+    "employees/{employeeId}/certifications": {
+      "schema": "Certification",
+      "description": "Certifications for a specific employee"
+    },
+    "units": {
+      "schema": "Unit",
+      "description": "Organizational units"
+    },
+    "companies": {
+      "schema": "Company",
+      "description": "Parent and subsidiary companies"
+    }
+  }
+}

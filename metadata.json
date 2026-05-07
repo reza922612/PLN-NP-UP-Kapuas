@@ -1,0 +1,14 @@
+{
+  "name": "SIMAP PLN NP Kapuas",
+  "description": "Sistem Informasi Manajemen Data Pegawai Modern PT PLN Nusantara Power Unit Pembangkitan Kapuas.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "Employee Data Management",
+    "Analytics Dashboard",
+    "Document Storage",
+    "Role-based Access"
+  ]
+}

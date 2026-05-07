@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-pln-blue: #005DAA;
+  --color-pln-cyan: #00AEEF;
+  --color-pln-dark: #003e72;
+  --color-pln-light: #E6F4FF;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  @apply bg-slate-50 text-slate-900;
+}
+
+.pln-gradient {
+  background: linear-gradient(135deg, #00AEEF 0%, #005DAA 100%);
+}
+
+.sidebar-gradient {
+  background: linear-gradient(180deg, #005DAA 0%, #003e72 100%);
+}
+
+.stat-card {
+  @apply bg-white p-5 rounded-xl shadow-sm transition-transform duration-200 border-t-4 border-pln-cyan;
+}
+
+.stat-card:hover {
+  @apply -translate-y-1;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

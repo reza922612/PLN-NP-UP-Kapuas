@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return isSignedIn() && getUserData().role == role;
+    }
+
+    function isAdmin() {
+      return hasRole('admin') || hasRole('super_admin');
+    }
+
+    function isViewer() {
+      return hasRole('viewer') || isAdmin();
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 1. Users Collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      // Users can see their own role to bootstrap UI
+      allow list: if isAdmin();
+      
+      // Only super_admin can create/update roles
+      // BOOTSTRAP: Allow reza.ardiansyah2@plnnusantarapower.co.id to register as super_admin
+      allow create: if isSignedIn() && request.auth.uid == userId && (
+        incoming().role == 'viewer' || 
+        (request.auth.token.email == 'reza.ardiansyah2@plnnusantarapower.co.id' && incoming().role == 'super_admin')
+      );
+      allow update: if isSignedIn() && (
+        (request.auth.uid == userId && incoming().role == existing().role && incoming().diff(existing()).affectedKeys().hasOnly(['displayName'])) ||
+        hasRole('super_admin')
+      );
+    }
+
+    // 2. Employees Collection
+    function isValidEmployee(data) {
+      return data.nip is string && data.nip.size() <= 64 &&
+             data.fullName is string && data.fullName.size() <= 256 &&
+             data.unitPelaksana is string &&
+             data.perusahaan is string &&
+             data.status in ['Pegawai Organik', 'Pegawai Tugas Khusus', 'Tenaga Alih Daya'] &&
+             (!('agama' in data) || (data.agama is string && data.agama.size() <= 50));
+    }
+
+    match /employees/{employeeId} {
+      allow read: if isViewer();
+      allow create: if isAdmin() && isValidEmployee(incoming()) && 
+                    incoming().createdAt == request.time;
+      allow update: if isAdmin() && isValidEmployee(incoming()) && (
+        incoming().nip == existing().nip && // NIP Immutable
+        incoming().updatedAt == request.time
+      );
+      allow delete: if hasRole('super_admin');
+
+      // Sub-collections: Trainings & Certifications
+      match /trainings/{trainingId} {
+        allow read: if isViewer();
+        allow write: if isAdmin();
+      }
+      match /certifications/{certId} {
+        allow read: if isViewer();
+        allow write: if isAdmin();
+      }
+    }
+
+    // 3. Metadata Collections
+    function isValidUnit(data) {
+      return data.namaUnitLayananPusatListrik is string && data.namaUnitLayananPusatListrik.size() <= 256 &&
+             data.alamatLengkap is string && data.alamatLengkap.size() <= 1024 &&
+             (!('latitude' in data) || data.latitude is number) &&
+             (!('longitude' in data) || data.longitude is number) &&
+             (!('mesin' in data) || data.mesin is list);
+    }
+
+    match /units/{unitId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isValidUnit(incoming());
+      allow update: if isAdmin() && isValidUnit(incoming());
+      allow delete: if hasRole('super_admin');
+    }
+    match /companies/{companyId} {
+      allow read: if isSignedIn();
+      allow write: if hasRole('super_admin');
+    }
+  }
+}
