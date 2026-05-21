@@ -1,4 +1,4 @@
-export type UserRole = 'super_admin' | 'admin' | 'viewer';
+export type UserRole = 'super_admin' | 'admin' | 'viewer' | 'employee';
 export type EmployeeStatus = 'Pegawai Organik' | 'Pegawai Tugas Khusus' | 'Tenaga Alih Daya';
 export type CompanyName = 'PT PLN Nusantara Power' | 'PT PLN (Persero)' | 'PT PLN Paguntaka Cahaya Nusantara' | 'PT Mitra Karya Prima';
 
@@ -8,6 +8,7 @@ export interface UserProfile {
   role: UserRole;
   displayName: string;
   unitId?: string;
+  employeeId?: string;
   createdAt: any;
 }
 

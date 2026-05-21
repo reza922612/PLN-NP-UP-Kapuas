@@ -8,7 +8,8 @@ import {
   updateDoc, 
   deleteDoc, 
   doc, 
-  Timestamp
+  Timestamp,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Unit } from '../types';
@@ -73,7 +74,7 @@ export const useUnits = () => {
     try {
       await addDoc(collection(db, 'units'), {
         ...unitData,
-        createdAt: Timestamp.now(),
+        createdAt: serverTimestamp(),
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'units');

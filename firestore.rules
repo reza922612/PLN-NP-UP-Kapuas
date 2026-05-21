@@ -46,10 +46,10 @@ service cloud.firestore {
       allow list: if isAdmin();
       
       // Only super_admin can create/update roles
-      // BOOTSTRAP: Allow reza.ardiansyah2@plnnusantarapower.co.id to register as super_admin
+      // BOOTSTRAP: Allow current user email to register as super_admin
       allow create: if isSignedIn() && request.auth.uid == userId && (
         incoming().role == 'viewer' || 
-        (request.auth.token.email == 'reza.ardiansyah2@plnnusantarapower.co.id' && incoming().role == 'super_admin')
+        (request.auth.token.email == 'rzardiansyah92@gmail.com' && incoming().role == 'super_admin')
       );
       allow update: if isSignedIn() && (
         (request.auth.uid == userId && incoming().role == existing().role && incoming().diff(existing()).affectedKeys().hasOnly(['displayName'])) ||
@@ -94,7 +94,9 @@ service cloud.firestore {
              data.alamatLengkap is string && data.alamatLengkap.size() <= 1024 &&
              (!('latitude' in data) || data.latitude is number) &&
              (!('longitude' in data) || data.longitude is number) &&
-             (!('mesin' in data) || data.mesin is list);
+             (!('mesin' in data) || data.mesin is list) &&
+             (!('photoUrl' in data) || (data.photoUrl == null || data.photoUrl is string)) &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
     }
 
     match /units/{unitId} {

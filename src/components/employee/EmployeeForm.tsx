@@ -5,6 +5,7 @@ import * as z from 'zod';
 import { useEmployees } from '../../hooks/useEmployees';
 import { storage } from '../../lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { Employee } from '../../types';
 import { 
   User, 
   Mail, 
@@ -81,15 +82,27 @@ const employeeSchema = z.object({
 
 type EmployeeFormValues = z.infer<typeof employeeSchema>;
 
-const EmployeeForm: React.FC = () => {
-  const { createEmployee } = useEmployees();
+interface EmployeeFormProps {
+  initialData?: Employee | null;
+  onSuccess?: () => void;
+  isProfileEdit?: boolean;
+}
+
+const EmployeeForm: React.FC<EmployeeFormProps> = ({ initialData, onSuccess, isProfileEdit }) => {
+  const { createEmployee, updateEmployee } = useEmployees();
   const [isSuccess, setIsSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
 
   const { register, control, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
-    defaultValues: {
+    defaultValues: initialData ? {
+      ...initialData,
+      trainings: (initialData.trainings || []).map(t => ({ ...t, certificateUrl: (t.certificateUrl ? [t.certificateUrl] : []) })),
+      certifications: (initialData.certifications || []).map(c => ({ ...c, certificateUrl: (c.certificateUrl ? [c.certificateUrl] : []) })),
+      photoUrl: initialData.photoUrl ? [initialData.photoUrl] : [],
+      dossierUrl: initialData.dossierUrl ? [initialData.dossierUrl] : [],
+    } as any : {
       jenisKelamin: 'Laki-laki',
       status: 'Pegawai Organik',
       perusahaan: 'PT PLN Nusantara Power',
@@ -216,17 +229,27 @@ const EmployeeForm: React.FC = () => {
       
       const payload = {
         ...data,
-        photoUrl: photoUrl || null,
-        dossierUrl: dossierUrl || null,
-        trainings: trainingsWithUrls,
-        certifications: certsWithUrls,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        photoUrl: photoUrl || (typeof data.photoUrl?.[0] === 'string' ? data.photoUrl[0] : null),
+        dossierUrl: dossierUrl || (typeof data.dossierUrl?.[0] === 'string' ? data.dossierUrl[0] : null),
+        trainings: trainingsWithUrls.map((t, idx) => ({
+          ...t,
+          certificateUrl: t.certificateUrl || (typeof data.trainings?.[idx]?.certificateUrl?.[0] === 'string' ? data.trainings[idx].certificateUrl[0] : null)
+        })),
+        certifications: certsWithUrls.map((c, idx) => ({
+          ...c,
+          certificateUrl: c.certificateUrl || (typeof data.certifications?.[idx]?.certificateUrl?.[0] === 'string' ? data.certifications[idx].certificateUrl[0] : null)
+        })),
       };
 
-      await createEmployee(payload as any);
+      if (initialData?.id) {
+        await updateEmployee(initialData.id, payload as any);
+      } else {
+        await createEmployee(payload as any);
+      }
+      
       setIsSuccess(true);
-      reset();
+      if (onSuccess) onSuccess();
+      if (!initialData) reset();
       window.scrollTo({ top: 0, behavior: 'smooth' });
       setTimeout(() => setIsSuccess(false), 3000);
     } catch (err: any) {
@@ -258,13 +281,17 @@ const EmployeeForm: React.FC = () => {
     </div>
   );
 
-  const InputField = ({ label, name, type = "text", error, options, placeholder }: any) => (
+  const InputField = ({ label, name, type = "text", error, options, placeholder, disabled }: any) => (
     <div className="flex flex-col gap-1.5">
       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">{label}</label>
       {options ? (
         <select 
           {...register(name)}
-          className="px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm focus:ring-2 focus:ring-pln-blue outline-none transition-all font-semibold appearance-none"
+          disabled={disabled}
+          className={cn(
+            "px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm focus:ring-2 focus:ring-pln-blue outline-none transition-all font-semibold appearance-none disabled:opacity-60 disabled:bg-slate-100",
+            error ? "ring-2 ring-red-300 border-red-300" : ""
+          )}
         >
           {options.map((opt: any) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -275,8 +302,9 @@ const EmployeeForm: React.FC = () => {
           type={type}
           {...register(name)}
           placeholder={placeholder}
+          disabled={disabled}
           className={cn(
-            "px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm focus:ring-2 focus:ring-pln-blue outline-none transition-all font-semibold",
+            "px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm focus:ring-2 focus:ring-pln-blue outline-none transition-all font-semibold disabled:opacity-60 disabled:bg-slate-100",
             error ? "ring-2 ring-red-300 border-red-300" : ""
           )}
         />
@@ -353,21 +381,21 @@ const EmployeeForm: React.FC = () => {
         )}
 
         <Section title="Data Personal & Kontak">
-          <InputField label="Nama Lengkap" name="fullName" error={errors.fullName} placeholder="Contoh: Budi Santoso" />
-          <InputField label="NIP" name="nip" error={errors.nip} placeholder="Nomor Induk Pegawai" />
-          <InputField label="Jenis Kelamin" name="jenisKelamin" options={[
+          <InputField label="Nama Lengkap" name="fullName" error={errors.fullName} placeholder="Contoh: Budi Santoso" disabled={isProfileEdit} />
+          <InputField label="NIP" name="nip" error={errors.nip} placeholder="Nomor Induk Pegawai" disabled={isProfileEdit} />
+          <InputField label="Jenis Kelamin" name="jenisKelamin" disabled={isProfileEdit} options={[
             { label: 'Laki-laki', value: 'Laki-laki' },
             { label: 'Perempuan', value: 'Perempuan' }
           ]} />
           <InputField label="Agama" name="agama" error={errors.agama} />
           <div className="grid grid-cols-2 gap-4">
-            <InputField label="Tanggal Lahir" name="tanggalLahir" type="date" error={errors.tanggalLahir} />
+            <InputField label="Tanggal Lahir" name="tanggalLahir" type="date" error={errors.tanggalLahir} disabled={isProfileEdit} />
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Umur (Otomatis)</label>
               <div className="px-4 py-3 bg-slate-100 rounded-xl text-sm font-black text-slate-600">{age} Tahun</div>
             </div>
           </div>
-          <InputField label="Email Korporat" name="emailKorporat" type="email" error={errors.emailKorporat} placeholder="user@plnnusantarapower.co.id" />
+          <InputField label="Email Korporat" name="emailKorporat" type="email" error={errors.emailKorporat} placeholder="user@plnnusantarapower.co.id" disabled={isProfileEdit} />
           <InputField label="Nomor Telepon" name="noTelepon" error={errors.noTelepon} placeholder="0812xxxx" />
           <InputField label="Pendidikan Terakhir" name="pendidikanTerakhir" error={errors.pendidikanTerakhir} />
           <div className="lg:col-span-2">
@@ -376,24 +404,24 @@ const EmployeeForm: React.FC = () => {
         </Section>
 
         <Section title="Data Kepegawaian & Jabatan">
-          <InputField label="Jabatan Lengkap" name="jabatanLengkap" error={errors.jabatanLengkap} />
-          <InputField label="Unit Pelaksana" name="unitPelaksana" error={errors.unitPelaksana} />
-          <InputField label="Sub Unit" name="subUnit" error={errors.subUnit} />
-          <InputField label="Person Grade" name="personGrade" error={errors.personGrade} />
-          <InputField label="Position Grade" name="positionGrade" error={errors.positionGrade} />
-          <InputField label="Status Pegawai" name="status" options={[
+          <InputField label="Jabatan Lengkap" name="jabatanLengkap" error={errors.jabatanLengkap} disabled={isProfileEdit} />
+          <InputField label="Unit Pelaksana" name="unitPelaksana" error={errors.unitPelaksana} disabled={isProfileEdit} />
+          <InputField label="Sub Unit" name="subUnit" error={errors.subUnit} disabled={isProfileEdit} />
+          <InputField label="Person Grade" name="personGrade" error={errors.personGrade} disabled={isProfileEdit} />
+          <InputField label="Position Grade" name="positionGrade" error={errors.positionGrade} disabled={isProfileEdit} />
+          <InputField label="Status Pegawai" name="status" disabled={isProfileEdit} options={[
             { label: 'Pegawai Organik', value: 'Pegawai Organik' },
             { label: 'Pegawai Tugas Khusus', value: 'Pegawai Tugas Khusus' },
             { label: 'Tenaga Alih Daya', value: 'Tenaga Alih Daya' }
           ]} />
-          <InputField label="Perusahaan" name="perusahaan" options={[
+          <InputField label="Perusahaan" name="perusahaan" disabled={isProfileEdit} options={[
             { label: 'PT PLN Nusantara Power', value: 'PT PLN Nusantara Power' },
             { label: 'PT PLN (Persero)', value: 'PT PLN (Persero)' },
             { label: 'PT PLN Paguntaka Cahaya Nusantara', value: 'PT PLN Paguntaka Cahaya Nusantara' },
             { label: 'PT Mitra Karya Prima', value: 'PT Mitra Karya Prima' }
           ]} />
           <div className="grid grid-cols-2 gap-4">
-             <InputField label="Tgl Pengangkatan" name="tanggalPengangkatan" type="date" error={errors.tanggalPengangkatan} />
+             <InputField label="Tgl Pengangkatan" name="tanggalPengangkatan" type="date" error={errors.tanggalPengangkatan} disabled={isProfileEdit} />
              <div className="flex flex-col gap-1.5">
                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Masa Kerja</label>
                <div className="px-4 py-3 bg-slate-100 rounded-xl text-sm font-black text-slate-600">{tenure}</div>
@@ -402,11 +430,11 @@ const EmployeeForm: React.FC = () => {
         </Section>
 
         <Section title="Administrasi Tanggal">
-          <InputField label="Tanggal Masuk" name="tanggalMasuk" type="date" error={errors.tanggalMasuk} />
-          <InputField label="Tanggal CP" name="tanggalCalonPegawai" type="date" error={errors.tanggalCalonPegawai} />
-          <InputField label="Tgl Mulai Jabatan" name="tanggalMulaiJabatan" type="date" error={errors.tanggalMulaiJabatan} />
-          <InputField label="Tgl Pensiun Normal" name="tanggalPensiunNormal" type="date" error={errors.tanggalPensiunNormal} />
-          <InputField label="Tgl Akhir Kerja" name="tanggalBerakhirBekerja" type="date" />
+          <InputField label="Tanggal Masuk" name="tanggalMasuk" type="date" error={errors.tanggalMasuk} disabled={isProfileEdit} />
+          <InputField label="Tanggal CP" name="tanggalCalonPegawai" type="date" error={errors.tanggalCalonPegawai} disabled={isProfileEdit} />
+          <InputField label="Tgl Mulai Jabatan" name="tanggalMulaiJabatan" type="date" error={errors.tanggalMulaiJabatan} disabled={isProfileEdit} />
+          <InputField label="Tgl Pensiun Normal" name="tanggalPensiunNormal" type="date" error={errors.tanggalPensiunNormal} disabled={isProfileEdit} />
+          <InputField label="Tgl Akhir Kerja" name="tanggalBerakhirBekerja" type="date" disabled={isProfileEdit} />
         </Section>
 
         <Section title="Identitas & Dokumen">

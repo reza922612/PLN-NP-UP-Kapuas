@@ -11,7 +11,8 @@ import {
   doc, 
   getDocs,
   Timestamp,
-  getDoc
+  getDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Employee, Training, Certification } from '../types';
@@ -73,8 +74,8 @@ export const useEmployees = (shouldFetch: boolean = true) => {
     try {
       await addDoc(collection(db, 'employees'), {
         ...employeeData,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'employees');
@@ -86,7 +87,7 @@ export const useEmployees = (shouldFetch: boolean = true) => {
       const docRef = doc(db, 'employees', id);
       await updateDoc(docRef, {
         ...employeeData,
-        updatedAt: Timestamp.now(),
+        updatedAt: serverTimestamp(),
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `employees/${id}`);

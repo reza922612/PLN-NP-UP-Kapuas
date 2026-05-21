@@ -51,7 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onLogout, ro
           isCollapsed ? "p-2 rounded-lg" : ""
         )}>
           <img 
-            src="https://upload.wikimedia.org/wikipedia/commons/b/b4/PLN_Nusantara_Power.png" 
+            src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/PLN_Nusantara_Power.png/400px-PLN_Nusantara_Power.png" 
             alt="PLN Logo" 
             className={cn("object-contain transition-all duration-300", isCollapsed ? "h-6 mx-auto" : "h-8")} 
             referrerPolicy="no-referrer"

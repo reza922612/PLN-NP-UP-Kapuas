@@ -107,7 +107,7 @@ const Login: React.FC = () => {
         >
           <div className="mb-6 flex justify-center lg:justify-start">
             <img 
-              src="https://upload.wikimedia.org/wikipedia/commons/b/b4/PLN_Nusantara_Power.png" 
+              src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/PLN_Nusantara_Power.png/400px-PLN_Nusantara_Power.png" 
               alt="PLN Nusantara Power Logo" 
               className="h-16 object-contain" 
               referrerPolicy="no-referrer"

@@ -16,16 +16,19 @@ import EmployeeDetail from './components/employee/EmployeeDetail';
 import UnitManagement from './components/dashboard/UnitManagement';
 import OrgStructure from './components/dashboard/OrgStructure';
 import CertificationList from './components/employee/CertificationList';
+import LandingPage from './components/public/LandingPage';
+import EmployeeDashboard from './components/employee/EmployeeDashboard';
 
 const MainApp: React.FC = () => {
   const { user, profile, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [showLogin, setShowLogin] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [unreadCount, setUnreadCount] = useState(2);
-  const { employees, stats, loading: employeesLoading } = useEmployees(!!user && !!profile);
+  const { employees, stats, loading: employeesLoading } = useEmployees(!!user && !!profile && profile.role !== 'employee');
 
   const notifications = [
     { id: 1, title: 'Input Pegawai Baru', desc: 'Deni Setiawan telah ditambahkan ke sistem', time: '2 jam yang lalu' },
@@ -40,12 +43,32 @@ const MainApp: React.FC = () => {
     );
   }
 
-  if (!user) {
-    return <Login />;
+  if (!user && !showLogin) {
+    return <LandingPage onStart={() => setShowLogin(true)} />;
+  }
+
+  if (!user && showLogin) {
+    return (
+      <div className="relative">
+        <button 
+          onClick={() => setShowLogin(false)}
+          className="absolute top-8 left-8 z-50 flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-lg border border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-pln-blue transition-all"
+        >
+          <div className="w-5 h-5 rounded bg-slate-100 flex items-center justify-center">←</div>
+          Kembali
+        </button>
+        <Login />
+      </div>
+    );
+  }
+
+  if (profile?.role === 'employee') {
+    return <EmployeeDashboard />;
   }
 
   const handleLogout = () => {
     signOut(auth);
+    setShowLogin(false);
   };
 
   const renderContent = () => {

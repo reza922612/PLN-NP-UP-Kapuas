@@ -43,7 +43,7 @@ const machineSchema = z.object({
 
 const unitSchema = z.object({
   namaUnitLayananPusatListrik: z.string().min(1, "Nama unit wajib diisi"),
-  alamat: z.string().min(1, "Alamat wajib diisi"),
+  alamatLengkap: z.string().min(1, "Alamat wajib diisi"),
   latitude: z.coerce.number(),
   longitude: z.coerce.number(),
   mesin: z.array(machineSchema),
@@ -64,7 +64,7 @@ const UnitManagement: React.FC = () => {
     resolver: zodResolver(unitSchema) as any,
     defaultValues: {
       namaUnitLayananPusatListrik: '',
-      alamat: '',
+      alamatLengkap: '',
       latitude: -1.7161,
       longitude: 109.5891,
       mesin: [{ namaMesin: '', typeMesin: '', nomorSeri: '', dayaMampuNominal: 0, bebanPuncak: 0, jenisMesin: 'PLTD', sistem: 'Sistem Khatulistiwa' }]
@@ -194,10 +194,10 @@ const UnitManagement: React.FC = () => {
                 />
                  <InputField 
                   label="Alamat Lengkap" 
-                  name="alamat" 
+                  name="alamatLengkap" 
                   icon={MapPin} 
                   placeholder="Jl. Merdeka No. 1..."
-                  error={errors.alamat}
+                  error={errors.alamatLengkap}
                 />
                 <div className="grid grid-cols-2 gap-4">
                   <InputField label="Latitude" name="latitude" type="number" placeholder="Lat" error={errors.latitude} />
@@ -362,7 +362,7 @@ const UnitManagement: React.FC = () => {
                         <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">{unit.namaUnitLayananPusatListrik}</h4>
                         <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold mt-1">
                           <MapPin size={12} className="text-pln-blue" />
-                          {unit.alamat}
+                          {unit.alamatLengkap}
                         </div>
                       </div>
                       <button 
