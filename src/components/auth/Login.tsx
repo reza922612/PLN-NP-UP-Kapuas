@@ -3,6 +3,7 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswor
 import { auth } from '../../lib/firebase';
 import { ShieldCheck, Mail, Lock, Loader2, AlertCircle, UserPlus, LogIn } from 'lucide-react';
 import { motion } from 'motion/react';
+import PlnNpLogo from '../common/PlnNpLogo';
 
 const Login: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -64,13 +65,13 @@ const Login: React.FC = () => {
       {/* Left Pane - Branding */}
       <div className="hidden lg:flex flex-col justify-between p-12 pln-gradient text-white relative overflow-hidden">
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-12">
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/30">
-              <ShieldCheck size={32} />
+          <div className="flex items-center gap-3.5 mb-12">
+            <div className="w-12 h-12 bg-white/15 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/25 p-1.5 shadow-lg">
+              <PlnNpLogo variant="icon" className="w-full h-full" />
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tight uppercase">PLN NP</h1>
-              <p className="text-[10px] opacity-80 font-bold uppercase tracking-widest">UP KAPUAS</p>
+              <h1 className="text-xl font-black tracking-tight uppercase leading-none">PLN Nusantara Power</h1>
+              <p className="text-[10px] opacity-85 font-bold uppercase tracking-widest mt-1">UP KAPUAS</p>
             </div>
           </div>
 
@@ -105,13 +106,8 @@ const Login: React.FC = () => {
           animate={{ opacity: 1, scale: 1 }}
           className="w-full max-w-sm"
         >
-          <div className="mb-6 flex justify-center lg:justify-start">
-            <img 
-              src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/PLN_Nusantara_Power.png/400px-PLN_Nusantara_Power.png" 
-              alt="PLN Nusantara Power Logo" 
-              className="h-16 object-contain" 
-              referrerPolicy="no-referrer"
-            />
+          <div className="mb-8 flex justify-center lg:justify-start">
+            <PlnNpLogo className="h-12 sm:h-14 w-auto" />
           </div>
           <div className="mb-10 text-center lg:text-left">
             <h3 className="text-3xl font-black text-slate-800 mb-2 tracking-tight">

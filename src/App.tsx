@@ -163,7 +163,7 @@ const MainApp: React.FC = () => {
             </div>
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold text-slate-800">{profile?.displayName || user.email}</p>
-              <p className="text-[10px] text-pln-blue font-bold uppercase tracking-wider">{profile?.role?.replace('_', ' ') || 'Admin'}</p>
+              <p className="text-[8px] text-pln-blue font-bold uppercase tracking-wider">{profile?.role?.replace('_', ' ') || 'Admin'}</p>
             </div>
             <div className="relative">
               <button 
@@ -190,9 +190,11 @@ const MainApp: React.FC = () => {
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{user.email}</p>
                       </div>
                       <div className="w-full pt-4 border-t border-slate-50">
-                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest mb-4">
-                          <span className="text-slate-400">Role</span>
-                          <span className="text-pln-blue bg-blue-50 px-2 py-0.5 rounded">{profile?.role?.replace('_', ' ') || 'Super Admin'}</span>
+                        <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-50">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Status</span>
+                          <span className="text-pln-blue bg-blue-50 px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-normal border border-blue-100/50">
+                            {profile?.role?.replace('_', ' ') || 'Super Admin'}
+                          </span>
                         </div>
                         <button 
                           onClick={handleLogout}

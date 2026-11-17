@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
+import PlnNpLogo from '../common/PlnNpLogo';
 
 const EmployeeDashboard: React.FC = () => {
   const { profile } = useAuth();
@@ -98,9 +99,9 @@ const EmployeeDashboard: React.FC = () => {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="bg-pln-blue p-2 rounded-xl">
-              <ShieldCheck className="text-white" size={24} />
-            </div>
+            <PlnNpLogo className="h-9 w-auto hidden sm:block" />
+            <PlnNpLogo variant="icon" className="h-9 w-9 sm:hidden" />
+            <div className="h-7 w-px bg-slate-200 hidden sm:block" />
             <div>
               <h1 className="text-lg font-black text-slate-900 leading-none uppercase">Employee Portal</h1>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">SIMAP PLN NP UP KAPUAS</p>

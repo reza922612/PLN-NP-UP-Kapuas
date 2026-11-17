@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../../lib/utils';
+import PlnNpLogo from '../common/PlnNpLogo';
 
 interface LandingPageProps {
   onStart: () => void;
@@ -58,15 +59,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
       <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-50">
-              <img 
-                src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/PLN_Nusantara_Power.png/400px-PLN_Nusantara_Power.png" 
-                alt="PLN Nusantara Power Logo" 
-                className="h-8 object-contain" 
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            <div className="h-8 w-px bg-slate-200 mx-1 hidden sm:block" />
+            <PlnNpLogo className="h-9 sm:h-10 w-auto" />
+            <div className="h-7 w-px bg-slate-200 mx-1 hidden sm:block" />
             <div className="hidden sm:block">
               <span className="text-lg font-black tracking-tighter text-slate-800 uppercase block leading-none">SIMAP</span>
               <span className="text-[9px] font-black tracking-widest text-pln-blue uppercase">UP Kapuas</span>
@@ -99,12 +93,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
             </div>
             
             <div className="space-y-4">
-              <img 
-                src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/PLN_Nusantara_Power.png/600px-PLN_Nusantara_Power.png" 
-                alt="PLN NP" 
-                className="h-14 object-contain mb-2"
-                referrerPolicy="no-referrer"
-              />
+              <PlnNpLogo className="h-12 sm:h-14 w-auto mb-3" />
               <h1 className="text-5xl md:text-7xl font-black text-slate-900 leading-[1.1] tracking-tighter">
                 Digitalisasi <br/>
                 <span className="text-pln-blue italic">Operasional</span> <br/>
@@ -225,13 +214,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8 pb-16 border-b border-white/10">
             {/* Column 1: Contact & Address */}
             <div className="space-y-8">
-              <div className="bg-white/5 p-4 rounded-2xl w-fit">
-                <img 
-                  src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/PLN_Nusantara_Power.png/400px-PLN_Nusantara_Power.png" 
-                  alt="PLN NP" 
-                  className="h-10 object-contain brightness-0 invert"
-                  referrerPolicy="no-referrer"
-                />
+              <div className="bg-white/5 border border-white/10 px-4 py-3 rounded-2xl w-fit">
+                <PlnNpLogo theme="dark" className="h-10 w-auto" />
               </div>
               
               <div className="space-y-6">

@@ -18,6 +18,7 @@ import {
   X
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import PlnNpLogo from '../common/PlnNpLogo';
 
 interface SidebarProps {
   activeTab: string;
@@ -45,17 +46,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onLogout, ro
       "sidebar-gradient text-white h-screen sticky top-0 flex flex-col shadow-xl shrink-0 transition-all duration-300 z-30",
       isCollapsed ? "w-20" : "w-64"
     )}>
-      <div className={cn("p-6 border-b border-white/10 relative", isCollapsed ? "px-4" : "p-6")}>
+      <div className={cn("border-b border-white/10 relative transition-all duration-300", isCollapsed ? "p-4" : "p-6")}>
         <div className={cn(
-          "bg-white p-3 rounded-xl shadow-lg mb-3 transition-all duration-300",
-          isCollapsed ? "p-2 rounded-lg" : ""
+          "bg-white rounded-xl shadow-lg mb-3 transition-all duration-300 flex items-center justify-center",
+          isCollapsed ? "p-2 w-11 h-11 mx-auto" : "px-3.5 py-2.5"
         )}>
-          <img 
-            src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/PLN_Nusantara_Power.png/400px-PLN_Nusantara_Power.png" 
-            alt="PLN Logo" 
-            className={cn("object-contain transition-all duration-300", isCollapsed ? "h-6 mx-auto" : "h-8")} 
-            referrerPolicy="no-referrer"
-          />
+          {isCollapsed ? (
+            <PlnNpLogo variant="icon" className="h-7 w-7" />
+          ) : (
+            <PlnNpLogo className="h-8 w-full max-w-[180px]" />
+          )}
         </div>
         {!isCollapsed && (
           <div className="px-1">
