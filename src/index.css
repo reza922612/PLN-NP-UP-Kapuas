@@ -1,11 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap');
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-  --color-pln-blue: #005DAA;
-  --color-pln-cyan: #00AEEF;
-  --color-pln-dark: #003e72;
-  --color-pln-light: #E6F4FF;
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --color-pln-blue: #0072BC;
+  --color-pln-cyan: #72C8F1;
+  --color-pln-light-blue: #72C8F1;
+  --color-pln-yellow: #F9D423;
+  --color-pln-navy: #173B65;
+  --color-pln-dark: #173B65;
+  --color-pln-soft: #EAF6FC;
+  --color-pln-light: #EAF6FC;
 
   @keyframes spin-slow {
     from {
@@ -19,29 +27,46 @@
 }
 
 body {
-  font-family: 'Inter', sans-serif;
-  @apply bg-slate-50 text-slate-900;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  @apply bg-[#F4F8FB] text-[#173B65] dark:bg-[#071120] dark:text-slate-100 transition-colors duration-200 antialiased;
 }
 
 .pln-gradient {
-  background: linear-gradient(135deg, #00AEEF 0%, #005DAA 100%);
+  background: linear-gradient(135deg, #0072BC 0%, #173B65 100%);
+}
+
+.pln-accent-gradient {
+  background: linear-gradient(135deg, #0072BC 0%, #72C8F1 100%);
+}
+
+.pln-cta-gradient {
+  background: linear-gradient(135deg, #0072BC 0%, #0072BC 62%, #F9D423 145%);
 }
 
 .sidebar-gradient {
-  background: linear-gradient(180deg, #005DAA 0%, #003e72 100%);
+  background: linear-gradient(180deg, #173B65 0%, #0F2947 55%, #0A1D33 100%);
+}
+
+.dark .sidebar-gradient {
+  background: linear-gradient(180deg, #0C1B30 0%, #071120 100%);
+}
+
+.corporate-card {
+  @apply bg-white dark:bg-[#0E1A2E] rounded-2xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs transition-all duration-200;
 }
 
 .stat-card {
-  @apply bg-white p-5 rounded-xl shadow-sm transition-transform duration-200 border-t-4 border-pln-cyan;
+  @apply bg-white dark:bg-[#0E1A2E] p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs transition-all duration-200;
 }
 
 .stat-card:hover {
-  @apply -translate-y-1;
+  @apply -translate-y-0.5 shadow-md border-[#72C8F1]/60 dark:border-[#72C8F1]/40;
 }
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -50,6 +75,12 @@ body {
   background: #cbd5e1;
   border-radius: 10px;
 }
+.dark ::-webkit-scrollbar-thumb {
+  background: #243652;
+}
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #385075;
 }

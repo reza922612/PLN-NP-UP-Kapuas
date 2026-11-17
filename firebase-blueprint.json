@@ -2,13 +2,16 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "System administrator or viewer",
+      "description": "System administrator, employee, or viewer",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string", "format": "email" },
-        "displayName": { "type": "string" },
-        "role": { "type": "string", "enum": ["super_admin", "admin", "viewer"] },
+        "displayName": { "type": "string", "maxLength": 256 },
+        "role": { "type": "string", "enum": ["super_admin", "admin", "viewer", "employee"] },
+        "unitId": { "type": "string", "maxLength": 128 },
+        "employeeId": { "type": "string", "maxLength": 128 },
+        "themePreference": { "type": "string", "enum": ["light", "dark"] },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "role"]
@@ -46,6 +49,7 @@
         "perusahaan": { "type": "string", "enum": ["PT PLN Nusantara Power", "PT PLN (Persero)", "PT PLN Paguntaka Cahaya Nusantara", "PT Mitra Karya Prima"] },
         "photoUrl": { "type": "string" },
         "dossierUrl": { "type": "string" },
+        "scannedDocuments": { "type": "array" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -111,6 +115,64 @@
       "properties": {
         "name": { "type": "string" }
       }
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Audit trail of administrative actions on employees and units",
+      "type": "object",
+      "properties": {
+        "action": { "type": "string", "enum": ["CREATE", "UPDATE", "DELETE"] },
+        "entityType": { "type": "string", "enum": ["employee", "unit", "system"] },
+        "entityId": { "type": "string", "maxLength": 128 },
+        "entityName": { "type": "string", "maxLength": 256 },
+        "description": { "type": "string", "maxLength": 512 },
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "actorEmail": { "type": "string", "format": "email", "maxLength": 256 },
+        "actorName": { "type": "string", "maxLength": 256 },
+        "actorRole": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["action", "entityType", "entityId", "entityName", "description", "actorUid", "actorEmail", "actorName", "createdAt"]
+    },
+    "PublicVerification": {
+      "title": "PublicVerification",
+      "description": "Public non-PII employee ID verification card accessed via QR code",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string", "maxLength": 128 },
+        "fullName": { "type": "string", "maxLength": 256 },
+        "nip": { "type": "string", "maxLength": 64 },
+        "jabatanLengkap": { "type": "string", "maxLength": 256 },
+        "unitPelaksana": { "type": "string", "maxLength": 256 },
+        "subUnit": { "type": "string", "maxLength": 256 },
+        "status": { "type": "string", "enum": ["Pegawai Organik", "Pegawai Tugas Khusus", "Tenaga Alih Daya"] },
+        "perusahaan": { "type": "string", "maxLength": 256 },
+        "photoUrl": { "type": "string", "maxLength": 1024 },
+        "verifiedStatus": { "type": "string", "enum": ["ACTIVE", "INACTIVE"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["employeeId", "fullName", "nip", "unitPelaksana", "status", "perusahaan", "verifiedStatus", "updatedAt"]
+    },
+    "PublicStats": {
+      "title": "PublicStats",
+      "description": "Non-PII aggregated workforce and power generation statistics for the public landing page",
+      "type": "object",
+      "properties": {
+        "statId": { "type": "string", "maxLength": 128 },
+        "totalEmployees": { "type": "number" },
+        "organicCount": { "type": "number" },
+        "taskForceCount": { "type": "number" },
+        "subcontractCount": { "type": "number" },
+        "totalUnits": { "type": "number" },
+        "totalMachines": { "type": "number" },
+        "totalCapacityKW": { "type": "number" },
+        "totalPeakLoadKW": { "type": "number" },
+        "systemBreakdown": { "type": "object" },
+        "machineTypeBreakdown": { "type": "object" },
+        "unitSummaries": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["statId", "totalEmployees", "organicCount", "taskForceCount", "subcontractCount", "totalUnits", "totalMachines", "totalCapacityKW", "totalPeakLoadKW", "updatedAt"]
     }
   },
   "firestore": {
@@ -137,6 +199,18 @@
     "companies": {
       "schema": "Company",
       "description": "Parent and subsidiary companies"
+    },
+    "activity_logs": {
+      "schema": "ActivityLog",
+      "description": "Immutable administrative activity audit logs"
+    },
+    "public_verifications": {
+      "schema": "PublicVerification",
+      "description": "Public non-PII employee ID verification badges"
+    },
+    "public_stats": {
+      "schema": "PublicStats",
+      "description": "Public non-PII aggregated statistics for the command center landing page"
     }
   }
 }

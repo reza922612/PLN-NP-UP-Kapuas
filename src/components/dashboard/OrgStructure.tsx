@@ -1,141 +1,378 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useEmployees } from '../../hooks/useEmployees';
-import { 
-  Users, 
-  ChevronDown, 
-  ChevronRight, 
+import {
+  Users,
   User,
   ShieldCheck,
   Building2,
-  Trophy
+  Trophy,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  Mail,
+  Phone,
+  ExternalLink,
+  X,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Employee } from '../../types';
 import { cn } from '../../lib/utils';
+import { PageHeader, EmptyState, CardGridSkeleton } from '../common/DashboardUI';
 
-const OrgStructure: React.FC = () => {
+interface OrgStructureProps {
+  onSelectEmployee?: (emp: Employee) => void;
+}
+
+const OrgStructure: React.FC<OrgStructureProps> = ({ onSelectEmployee }) => {
   const { employees, loading } = useEmployees();
+  const [selectedUnit, setSelectedUnit] = useState('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showAllStaff, setShowAllStaff] = useState(false);
+  const [inspectedEmployee, setInspectedEmployee] = useState<Employee | null>(null);
 
-  const hierarchy = useMemo(() => {
-    if (!employees.length) return null;
-
-    // Define priority levels
-    const getLevel = (jabatan: string) => {
-      const j = jabatan.toLowerCase();
-      if (j.includes('manager unit') || j.includes('manajer unit')) return 0;
-      if (j.includes('assistant manager') || j.includes('asman')) return 1;
-      if (j.includes('team leader') || j.includes('tl')) return 2;
-      return 3; // Staff and others
-    };
-
-    const managers = employees.filter(e => getLevel(e.jabatanLengkap) === 0);
-    const asmans = employees.filter(e => getLevel(e.jabatanLengkap) === 1);
-    const tls = employees.filter(e => getLevel(e.jabatanLengkap) === 2);
-    const staffs = employees.filter(e => getLevel(e.jabatanLengkap) === 3);
-
-    // Grouping logic: This is a placeholder as we don't have direct reporting. 
-    // We'll show it as a level-based tree grouped by Unit then Sub-unit.
-    
-    return { managers, asmans, tls, staffs };
+  const unitOptions = useMemo(() => {
+    const set = new Set<string>();
+    employees.forEach((e) => e.unitPelaksana && set.add(e.unitPelaksana));
+    return Array.from(set).sort();
   }, [employees]);
 
-  if (loading) return (
-    <div className="flex flex-col items-center justify-center h-96 gap-4">
-      <div className="w-12 h-12 border-4 border-pln-blue border-t-transparent rounded-full animate-spin" />
-      <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Menyusun Struktur...</p>
-    </div>
-  );
+  const filteredEmployees = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return employees.filter((e) => {
+      const matchUnit = selectedUnit === 'ALL' || e.unitPelaksana === selectedUnit;
+      const matchSearch =
+        !q ||
+        e.fullName.toLowerCase().includes(q) ||
+        e.jabatanLengkap?.toLowerCase().includes(q) ||
+        e.subUnit?.toLowerCase().includes(q);
+      return matchUnit && matchSearch;
+    });
+  }, [employees, selectedUnit, searchTerm]);
 
-  const NodeCard = ({ employee, type }: any) => (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }}
+  const hierarchy = useMemo(() => {
+    const getLevel = (jabatan: string) => {
+      const j = (jabatan || '').toLowerCase();
+      if (j.includes('manager unit') || j.includes('manajer unit')) return 0;
+      if (j.includes('assistant manager') || j.includes('asman')) return 1;
+      if (j.includes('team leader') || j.includes('tl ')) return 2;
+      return 3;
+    };
+
+    return {
+      managers: filteredEmployees.filter((e) => getLevel(e.jabatanLengkap) === 0),
+      asmans: filteredEmployees.filter((e) => getLevel(e.jabatanLengkap) === 1),
+      tls: filteredEmployees.filter((e) => getLevel(e.jabatanLengkap) === 2),
+      staffs: filteredEmployees.filter((e) => getLevel(e.jabatanLengkap) === 3),
+    };
+  }, [filteredEmployees]);
+
+  const NodeCard: React.FC<{
+    employee: Employee;
+    tier: 'top' | 'mid' | 'lead';
+  }> = ({ employee, tier }) => (
+    <motion.button
+      type="button"
+      onClick={() => setInspectedEmployee(employee)}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ scale: 1.02 }}
+      whileHover={{ y: -2 }}
       className={cn(
-        "bg-white p-4 rounded-2xl shadow-sm border flex items-center gap-4 min-w-[280px] relative transition-shadow hover:shadow-xl",
-        type === 'top' ? "border-amber-400 bg-amber-50/10 ring-4 ring-amber-400/10" : 
-        type === 'mid' ? "border-pln-blue bg-blue-50/5" : "border-slate-100"
+        'text-left corporate-card p-4 flex items-center gap-3.5 min-w-[260px] max-w-[310px] w-full sm:w-auto relative transition-all hover:border-[#0072BC] dark:hover:border-[#72C8F1]',
+        tier === 'top' && 'border-t-4 border-t-[#F9D423] shadow-md',
+        tier === 'mid' && 'border-t-4 border-t-[#0072BC]',
+        tier === 'lead' && 'border-t-4 border-t-[#72C8F1]'
       )}
     >
-      <div className={cn(
-        "w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden shrink-0 shadow-inner",
-        type === 'top' ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-400"
-      )}>
+      <div
+        className={cn(
+          'w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden shrink-0 font-extrabold text-sm',
+          tier === 'top'
+            ? 'bg-amber-50 dark:bg-[#F9D423]/15 text-amber-600 dark:text-[#F9D423]'
+            : 'bg-[#EAF6FC] dark:bg-[#0072BC]/20 text-[#0072BC] dark:text-[#72C8F1]'
+        )}
+      >
         {employee.photoUrl ? (
-          <img src={employee.photoUrl} alt="" className="w-full h-full object-cover" />
+          <img src={employee.photoUrl} alt={employee.fullName} className="w-full h-full object-cover" />
         ) : (
-          <User size={24} />
+          employee.fullName?.[0]?.toUpperCase() || <User size={22} />
         )}
       </div>
-      <div>
-        <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight line-clamp-1">{employee.fullName}</h4>
-        <p className={cn(
-          "text-[9px] font-black uppercase tracking-widest mt-1",
-          type === 'top' ? "text-amber-600" : "text-pln-blue"
-        )}>{employee.jabatanLengkap}</p>
-        <p className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">{employee.subUnit || employee.unitPelaksana}</p>
+      <div className="min-w-0 flex-1">
+        <h4 className="text-xs font-extrabold text-[#173B65] dark:text-slate-100 truncate">
+          {employee.fullName}
+        </h4>
+        <p
+          className={cn(
+            'text-[11px] font-bold truncate mt-0.5',
+            tier === 'top' ? 'text-amber-600 dark:text-[#F9D423]' : 'text-[#0072BC] dark:text-[#72C8F1]'
+          )}
+        >
+          {employee.jabatanLengkap}
+        </p>
+        <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+          {employee.subUnit || employee.unitPelaksana}
+        </p>
       </div>
-      {type === 'top' && <Trophy size={14} className="absolute -top-2 -right-2 text-amber-500 bg-white rounded-full p-0.5 shadow-sm" />}
-    </motion.div>
+      {tier === 'top' && (
+        <Trophy
+          size={15}
+          className="absolute top-3 right-3 text-amber-500 dark:text-[#F9D423]"
+        />
+      )}
+    </motion.button>
   );
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Struktur Organisasi UP Kapuas"
+          subtitle="Menyusun hierarki jabatan dan profil pejabat unit..."
+          icon={ShieldCheck}
+        />
+        <CardGridSkeleton count={6} />
+      </div>
+    );
+  }
+
+  const displayedStaffs = showAllStaff ? hierarchy.staffs : hierarchy.staffs.slice(0, 12);
+
   return (
-    <div className="max-w-7xl mx-auto space-y-12 pb-24">
-      {/* Level 0: Managers */}
-      <div className="flex flex-col items-center space-y-8">
-        <div className="text-center space-y-1">
-          <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Manajerial Unit</h2>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Pucuk Pimpinan Unit Pelaksana</p>
+    <div className="space-y-6 pb-20">
+      <PageHeader
+        title="Struktur Organisasi UP Kapuas"
+        subtitle="Hierarki kepemimpinan unit, asisten manajer, team leader, dan staf pelaksana"
+        icon={ShieldCheck}
+        badge={`${filteredEmployees.length} Personel`}
+      />
+
+      {/* Filter Bar */}
+      <div className="corporate-card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Cari nama pejabat, jabatan, atau sub unit..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-[#F4F8FB] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-[#173B65] dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#0072BC]"
+          />
         </div>
-        <div className="flex flex-wrap justify-center gap-8">
-          {hierarchy?.managers.map(m => <NodeCard key={m.id} employee={m} type="top" />)}
+        <div className="flex items-center gap-2 px-3 py-2 bg-[#F4F8FB] dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700">
+          <Building2 size={14} className="text-[#0072BC] dark:text-[#72C8F1]" />
+          <select
+            value={selectedUnit}
+            onChange={(e) => setSelectedUnit(e.target.value)}
+            className="bg-transparent text-xs font-bold text-[#173B65] dark:text-slate-200 outline-none"
+          >
+            <option value="ALL" className="dark:bg-slate-900">Semua Unit Pelaksana</option>
+            {unitOptions.map((u) => (
+              <option key={u} value={u} className="dark:bg-slate-900">
+                {u}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
-      {/* Level 1: Assistant Managers */}
-      <div className="flex flex-col items-center space-y-8">
-        <div className="h-12 w-0.5 bg-slate-100" />
-        <div className="text-center space-y-1">
-          <h3 className="text-sm font-black text-slate-600 uppercase tracking-widest italic">Assistant Manager</h3>
+      {filteredEmployees.length === 0 ? (
+        <div className="corporate-card">
+          <EmptyState
+            icon={ShieldCheck}
+            title="Struktur organisasi tidak ditemukan"
+            description="Sesuaikan filter unit atau kata kunci pencarian jabatan untuk melihat hierarki."
+          />
         </div>
-        <div className="flex flex-wrap justify-center gap-6 max-w-5xl">
-          {hierarchy?.asmans.map(m => <NodeCard key={m.id} employee={m} type="mid" />)}
-        </div>
-      </div>
-
-      {/* Level 2: Team Leaders */}
-      <div className="flex flex-col items-center space-y-8">
-        <div className="h-12 w-0.5 bg-slate-100" />
-        <div className="text-center space-y-1">
-          <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Team Leader</h3>
-        </div>
-        <div className="flex flex-wrap justify-center gap-4 max-w-6xl">
-          {hierarchy?.tls.map(m => <NodeCard key={m.id} employee={m} />)}
-        </div>
-      </div>
-
-      {/* Level 3: Staff (Optional high density view) */}
-      <div className="flex flex-col items-center space-y-8">
-        <div className="h-12 w-0.5 bg-slate-100" />
-        <button className="flex items-center gap-2 px-6 py-2 bg-slate-100 text-slate-500 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors">
-          <Users size={14} />
-          Tampilkan {hierarchy?.staffs.length} Staf Pelaksana
-        </button>
-        <div className="flex flex-wrap justify-center gap-3 opacity-50 hover:opacity-100 transition-opacity">
-          {hierarchy?.staffs.slice(0, 12).map(m => (
-             <div key={m.id} className="bg-white p-2 rounded-xl border border-slate-50 shadow-sm flex items-center gap-2 group cursor-default">
-               <div className="w-6 h-6 rounded-md bg-slate-100 shrink-0 overflow-hidden">
-                 {m.photoUrl && <img src={m.photoUrl} alt="" className="w-full h-full object-cover" />}
-               </div>
-               <span className="text-[9px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors">{m.fullName.split(' ')[0]}</span>
-             </div>
-          ))}
-          {(hierarchy?.staffs.length ?? 0) > 12 && (
-            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 text-[9px] font-bold text-slate-400 flex items-center justify-center w-24">
-              +{ (hierarchy?.staffs.length ?? 0) - 12 } Lainnya
+      ) : (
+        <div className="space-y-8 pt-2">
+          {/* Level 0: Manajer Unit */}
+          <div className="flex flex-col items-center space-y-4">
+            <div className="text-center">
+              <span className="px-3 py-1 rounded-md bg-amber-50 dark:bg-[#F9D423]/15 text-amber-700 dark:text-[#F9D423] text-[11px] font-bold uppercase tracking-wider">
+                Level 1 · Manajerial Unit ({hierarchy.managers.length})
+              </span>
             </div>
-          )}
+            <div className="flex flex-wrap justify-center gap-5 w-full">
+              {hierarchy.managers.length > 0 ? (
+                hierarchy.managers.map((m) => <NodeCard key={m.id} employee={m} tier="top" />)
+              ) : (
+                <p className="text-xs text-slate-400">Tidak ada jabatan Manajer Unit pada filter ini.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="w-px h-8 bg-[#72C8F1]/60 mx-auto" />
+
+          {/* Level 1: Assistant Manager */}
+          <div className="flex flex-col items-center space-y-4">
+            <span className="px-3 py-1 rounded-md bg-[#EAF6FC] dark:bg-[#0072BC]/20 text-[#0072BC] dark:text-[#72C8F1] text-[11px] font-bold uppercase tracking-wider">
+              Level 2 · Assistant Manager ({hierarchy.asmans.length})
+            </span>
+            <div className="flex flex-wrap justify-center gap-4 w-full">
+              {hierarchy.asmans.length > 0 ? (
+                hierarchy.asmans.map((m) => <NodeCard key={m.id} employee={m} tier="mid" />)
+              ) : (
+                <p className="text-xs text-slate-400">Tidak ada Assistant Manager pada filter ini.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="w-px h-8 bg-[#72C8F1]/60 mx-auto" />
+
+          {/* Level 2: Team Leaders */}
+          <div className="flex flex-col items-center space-y-4">
+            <span className="px-3 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[#173B65] dark:text-slate-200 text-[11px] font-bold uppercase tracking-wider">
+              Level 3 · Team Leader ({hierarchy.tls.length})
+            </span>
+            <div className="flex flex-wrap justify-center gap-4 w-full">
+              {hierarchy.tls.length > 0 ? (
+                hierarchy.tls.map((m) => <NodeCard key={m.id} employee={m} tier="lead" />)
+              ) : (
+                <p className="text-xs text-slate-400">Tidak ada Team Leader pada filter ini.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="w-px h-8 bg-[#72C8F1]/60 mx-auto" />
+
+          {/* Level 3: Staff Pelaksana */}
+          <div className="corporate-card p-6 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-[#173B65] dark:text-slate-100">
+                  Staf &amp; Pelaksana Operasional ({hierarchy.staffs.length})
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Klik kartu pegawai untuk meninjau profil jabatan dan kontak singkat
+                </p>
+              </div>
+              {hierarchy.staffs.length > 12 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllStaff((p) => !p)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#EAF6FC] dark:bg-[#0072BC]/20 text-[#0072BC] dark:text-[#72C8F1] rounded-xl text-xs font-bold hover:bg-[#0072BC] hover:text-white transition-colors"
+                >
+                  <Users size={14} />
+                  {showAllStaff
+                    ? 'Tampilkan Lebih Sedikit'
+                    : `Tampilkan Semua (${hierarchy.staffs.length})`}
+                  {showAllStaff ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {displayedStaffs.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setInspectedEmployee(m)}
+                  className="text-left p-3 rounded-xl bg-[#F4F8FB] dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 hover:border-[#0072BC] transition-colors flex items-center gap-3"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-white dark:bg-[#0E1A2E] text-[#0072BC] dark:text-[#72C8F1] font-bold text-xs flex items-center justify-center shrink-0 overflow-hidden border border-slate-200 dark:border-slate-700">
+                    {m.photoUrl ? (
+                      <img src={m.photoUrl} alt={m.fullName} className="w-full h-full object-cover" />
+                    ) : (
+                      m.fullName?.[0]?.toUpperCase() || 'S'
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-[#173B65] dark:text-slate-100 truncate">
+                      {m.fullName}
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                      {m.jabatanLengkap}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Quick Profile Modal */}
+      <AnimatePresence>
+        {inspectedEmployee && (
+          <div
+            className="fixed inset-0 z-50 bg-[#071120]/65 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={() => setInspectedEmployee(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              onClick={(e) => e.stopPropagation()}
+              className="corporate-card max-w-md w-full p-6 space-y-5 relative"
+            >
+              <button
+                type="button"
+                onClick={() => setInspectedEmployee(null)}
+                className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X size={16} />
+              </button>
+
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-[#EAF6FC] dark:bg-[#0072BC]/20 text-[#0072BC] dark:text-[#72C8F1] flex items-center justify-center font-extrabold text-xl overflow-hidden shrink-0">
+                  {inspectedEmployee.photoUrl ? (
+                    <img
+                      src={inspectedEmployee.photoUrl}
+                      alt={inspectedEmployee.fullName}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    inspectedEmployee.fullName?.[0]?.toUpperCase() || 'P'
+                  )}
+                </div>
+                <div className="min-w-0 pr-6">
+                  <h4 className="text-base font-extrabold text-[#173B65] dark:text-slate-100 truncate">
+                    {inspectedEmployee.fullName}
+                  </h4>
+                  <p className="text-xs font-bold text-[#0072BC] dark:text-[#72C8F1]">
+                    {inspectedEmployee.jabatanLengkap}
+                  </p>
+                  <p className="text-[11px] font-mono text-slate-400 mt-0.5">
+                    NIP {inspectedEmployee.nip}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2.5 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
+                <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
+                  <Building2 size={14} className="text-[#0072BC] dark:text-[#72C8F1] shrink-0" />
+                  <span>
+                    {inspectedEmployee.unitPelaksana} · {inspectedEmployee.subUnit}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
+                  <Mail size={14} className="text-[#0072BC] dark:text-[#72C8F1] shrink-0" />
+                  <span className="truncate">{inspectedEmployee.emailKorporat || '-'}</span>
+                </div>
+                <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
+                  <Phone size={14} className="text-[#0072BC] dark:text-[#72C8F1] shrink-0" />
+                  <span className="font-mono">{inspectedEmployee.noTelepon || '-'}</span>
+                </div>
+              </div>
+
+              {onSelectEmployee && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = inspectedEmployee;
+                    setInspectedEmployee(null);
+                    onSelectEmployee(target);
+                  }}
+                  className="w-full py-2.5 bg-[#0072BC] text-white rounded-xl text-xs font-bold hover:bg-[#173B65] transition-colors flex items-center justify-center gap-2"
+                >
+                  <ExternalLink size={14} />
+                  Buka Profil Lengkap Pegawai
+                </button>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

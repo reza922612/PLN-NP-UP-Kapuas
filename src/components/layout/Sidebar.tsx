@@ -1,21 +1,18 @@
 import React from 'react';
-import { 
-  BarChart3, 
-  Users, 
-  UserPlus, 
-  LogOut, 
-  FileText, 
-  Settings, 
-  Search,
+import {
+  BarChart3,
+  Users,
+  UserPlus,
+  LogOut,
+  Settings,
   LayoutDashboard,
   ShieldCheck,
   Building2,
-  ChevronRight,
   Award,
   ChevronLeft,
-  ChevronRight as ChevronRightIcon,
-  Menu,
-  X
+  ChevronRight,
+  History,
+  X,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import PlnNpLogo from '../common/PlnNpLogo';
@@ -27,100 +24,206 @@ interface SidebarProps {
   role?: string;
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
+  mobileOpen?: boolean;
+  setMobileOpen?: (open: boolean) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onLogout, role, isCollapsed, setIsCollapsed }) => {
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'employees', label: 'Data Pegawai', icon: Users },
-    { id: 'add-employee', label: 'Input Pegawai', icon: UserPlus, hidden: role === 'viewer' },
-    { id: 'analytics', label: 'Laporan & Analitik', icon: BarChart3 },
-    { id: 'certifications', label: 'Data Sertifikasi', icon: Award },
-    { id: 'org-structure', label: 'Struktur Organisasi', icon: ShieldCheck },
-    { id: 'units', label: 'Data Pembangkit', icon: Building2, hidden: role !== 'super_admin' },
-    { id: 'settings', label: 'Pengaturan', icon: Settings },
+const Sidebar: React.FC<SidebarProps> = ({
+  activeTab,
+  setActiveTab,
+  onLogout,
+  role,
+  isCollapsed,
+  setIsCollapsed,
+  mobileOpen = false,
+  setMobileOpen,
+}) => {
+  const menuGroups = [
+    {
+      group: 'Utama',
+      items: [
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'analytics', label: 'Laporan & Analitik', icon: BarChart3 },
+      ],
+    },
+    {
+      group: 'Manajemen SDM',
+      items: [
+        { id: 'employees', label: 'Data Pegawai', icon: Users },
+        { id: 'add-employee', label: 'Input Pegawai', icon: UserPlus, hidden: role === 'viewer' },
+        { id: 'certifications', label: 'Data Sertifikasi', icon: Award },
+        { id: 'org-structure', label: 'Struktur Organisasi', icon: ShieldCheck },
+      ],
+    },
+    {
+      group: 'Aset & Sistem',
+      items: [
+        { id: 'units', label: 'Data Pembangkit', icon: Building2, hidden: role !== 'super_admin' },
+        { id: 'activity-log', label: 'Activity Log', icon: History },
+        { id: 'settings', label: 'Pengaturan', icon: Settings },
+      ],
+    },
   ];
 
-  return (
-    <aside className={cn(
-      "sidebar-gradient text-white h-screen sticky top-0 flex flex-col shadow-xl shrink-0 transition-all duration-300 z-30",
-      isCollapsed ? "w-20" : "w-64"
-    )}>
-      <div className={cn("border-b border-white/10 relative transition-all duration-300", isCollapsed ? "p-4" : "p-6")}>
-        <div className={cn(
-          "bg-white rounded-xl shadow-lg mb-3 transition-all duration-300 flex items-center justify-center",
-          isCollapsed ? "p-2 w-11 h-11 mx-auto" : "px-3.5 py-2.5"
-        )}>
-          {isCollapsed ? (
+  const handleSelect = (id: string) => {
+    setActiveTab(id);
+    if (setMobileOpen) setMobileOpen(false);
+  };
+
+  const renderSidebarBody = (collapsed: boolean, isMobile = false) => (
+    <div className="sidebar-gradient text-white h-full flex flex-col shadow-2xl">
+      {/* Brand Block */}
+      <div
+        className={cn(
+          'border-b border-white/10 relative transition-all duration-300',
+          collapsed ? 'p-4' : 'px-5 py-5'
+        )}
+      >
+        {isMobile && setMobileOpen && (
+          <button
+            type="button"
+            onClick={() => setMobileOpen(false)}
+            className="absolute top-4 right-4 p-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 lg:hidden"
+            aria-label="Tutup Menu"
+          >
+            <X size={16} />
+          </button>
+        )}
+
+        <div
+          className={cn(
+            'bg-white dark:bg-[#0E1A2E] dark:border dark:border-white/10 rounded-xl shadow-md mb-3 transition-all duration-300 flex items-center justify-center',
+            collapsed ? 'p-2 w-11 h-11 mx-auto' : 'px-3.5 py-2.5 mr-6 lg:mr-0'
+          )}
+        >
+          {collapsed ? (
             <PlnNpLogo variant="icon" className="h-7 w-7" />
           ) : (
-            <PlnNpLogo className="h-8 w-full max-w-[180px]" />
+            <PlnNpLogo className="h-7 w-full max-w-[172px]" />
           )}
         </div>
-        {!isCollapsed && (
-          <div className="px-1">
-            <h1 className="text-sm font-black leading-tight uppercase tracking-tight">SIMAP PLN NP</h1>
-            <p className="text-[10px] text-white/50 uppercase tracking-widest font-black">UP KAPUAS</p>
+
+        {!collapsed && (
+          <div className="px-0.5 flex items-center justify-between">
+            <div>
+              <h1 className="text-xs font-extrabold leading-tight uppercase tracking-wider text-white">
+                SIMAP PORTAL
+              </h1>
+              <p className="text-[10px] text-[#72C8F1] uppercase tracking-widest font-bold mt-0.5">
+                PLN NP UP KAPUAS
+              </p>
+            </div>
+            <span className="w-2 h-2 rounded-full bg-[#F9D423]" title="Enterprise Portal" />
           </div>
         )}
-        
-        <button 
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className={cn(
-            "absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white rounded-full shadow-lg border border-slate-100 text-pln-blue flex items-center justify-center hover:scale-110 transition-all z-40",
-            isCollapsed && "right-[-12px]"
-          )}
-        >
-          {isCollapsed ? <ChevronRightIcon size={14} /> : <ChevronLeft size={14} />}
-        </button>
+
+        {!isMobile && (
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            title={collapsed ? 'Perluas Sidebar' : 'Kecilkan Sidebar'}
+            className="hidden lg:flex absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white dark:bg-[#0E1A2E] rounded-full shadow-lg border border-slate-200 dark:border-slate-700 text-[#0072BC] dark:text-[#72C8F1] items-center justify-center hover:scale-110 transition-all z-40"
+          >
+            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+        )}
       </div>
 
-      <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
-        {menuItems.map((item) => (
-          !item.hidden && (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              title={isCollapsed ? item.label : ""}
-              className={cn(
-                "w-full flex items-center px-4 py-2.5 rounded-lg transition-all duration-200 group relative text-sm",
-                isCollapsed ? "justify-center px-0" : "gap-3",
-                activeTab === item.id 
-                  ? "bg-white/15 text-white font-bold" 
-                  : "text-white/70 hover:bg-white/5 hover:text-white"
+      {/* Navigation Groups */}
+      <nav className="flex-1 px-3 py-5 space-y-5 overflow-y-auto overflow-x-hidden">
+        {menuGroups.map((grp) => {
+          const visibleItems = grp.items.filter((i) => !i.hidden);
+          if (visibleItems.length === 0) return null;
+          return (
+            <div key={grp.group} className="space-y-1">
+              {!collapsed && (
+                <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-white/40">
+                  {grp.group}
+                </p>
               )}
-            >
-              <item.icon size={20} className={cn(
-                "transition-colors shrink-0",
-                activeTab === item.id ? "text-white" : "text-white/50 group-hover:text-white"
-              )} />
-              {!isCollapsed && <span className="truncate">{item.label}</span>}
-              {activeTab === item.id && (
-                <div className={cn(
-                  "absolute left-0 top-1/4 bottom-1/4 w-1 bg-white rounded-full",
-                  isCollapsed ? "hidden" : "block"
-                )} />
-              )}
-            </button>
-          )
-        ))}
+              {visibleItems.map((item) => {
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSelect(item.id)}
+                    title={collapsed ? item.label : ''}
+                    className={cn(
+                      'w-full flex items-center rounded-xl transition-all duration-150 group relative text-[13px]',
+                      collapsed ? 'justify-center p-2.5' : 'gap-3 px-3.5 py-2.5',
+                      isActive
+                        ? 'bg-[#0072BC]/90 text-white font-bold shadow-md shadow-[#071120]/30'
+                        : 'text-white/75 hover:bg-white/10 hover:text-white font-medium'
+                    )}
+                  >
+                    {isActive && !collapsed && (
+                      <span className="absolute left-0 top-2 bottom-2 w-1 bg-[#F9D423] rounded-r-full" />
+                    )}
+                    <item.icon
+                      size={18}
+                      className={cn(
+                        'transition-colors shrink-0',
+                        isActive
+                          ? 'text-[#F9D423]'
+                          : 'text-[#72C8F1]/75 group-hover:text-white'
+                      )}
+                    />
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
       </nav>
 
-      <div className={cn("p-4 border-t border-white/10", isCollapsed ? "p-2" : "p-4")}>
-        <button 
+      {/* Bottom Sign Out */}
+      <div className={cn('border-t border-white/10', collapsed ? 'p-2.5' : 'p-4')}>
+        <button
+          type="button"
           onClick={onLogout}
-          title={isCollapsed ? "Log Out" : ""}
+          title={collapsed ? 'Keluar Sistem' : ''}
           className={cn(
-            "w-full flex items-center justify-center transition-all duration-200 font-bold",
-            isCollapsed 
-              ? "p-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/40" 
-              : "py-2 text-xs bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/40"
+            'w-full flex items-center justify-center gap-2 transition-all duration-150 font-bold rounded-xl border border-red-400/20 bg-red-500/15 text-red-200 hover:bg-red-500/30 hover:text-white',
+            collapsed ? 'p-2.5' : 'py-2.5 px-4 text-xs'
           )}
         >
-          {isCollapsed ? <LogOut size={20} /> : "Log Out"}
+          <LogOut size={16} />
+          {!collapsed && <span>Keluar Sistem</span>}
         </button>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Sticky Sidebar */}
+      <aside
+        className={cn(
+          'hidden lg:block h-screen sticky top-0 shrink-0 transition-all duration-300 z-30',
+          isCollapsed ? 'w-20' : 'w-64'
+        )}
+      >
+        {renderSidebarBody(isCollapsed, false)}
+      </aside>
+
+      {/* Mobile / Tablet Slide-over Drawer */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-50 lg:hidden flex"
+          onClick={() => setMobileOpen && setMobileOpen(false)}
+        >
+          <div className="fixed inset-0 bg-[#071120]/65 backdrop-blur-xs" />
+          <aside
+            className="relative w-72 max-w-[85vw] h-full z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {renderSidebarBody(false, true)}
+          </aside>
+        </div>
+      )}
+    </>
   );
 };
 

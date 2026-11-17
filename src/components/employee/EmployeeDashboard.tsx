@@ -20,6 +20,7 @@ import { cn } from '../../lib/utils';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import PlnNpLogo from '../common/PlnNpLogo';
+import ThemeToggle from '../common/ThemeToggle';
 
 const EmployeeDashboard: React.FC = () => {
   const { profile } = useAuth();
@@ -52,9 +53,9 @@ const EmployeeDashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-10 h-10 text-pln-blue animate-spin" />
+          <Loader2 className="w-10 h-10 text-pln-blue dark:text-cyan-400 animate-spin" />
           <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">Memuat Dashboard Anda...</p>
         </div>
       </div>
@@ -63,20 +64,20 @@ const EmployeeDashboard: React.FC = () => {
 
   if (!profile?.employeeId) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-        <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl border border-slate-100 text-center space-y-6">
-          <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-6">
+        <div className="max-w-md w-full bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800 text-center space-y-6">
+          <div className="w-20 h-20 bg-amber-50 dark:bg-amber-950/50 text-amber-500 rounded-full flex items-center justify-center mx-auto">
             <AlertCircle size={40} />
           </div>
           <div className="space-y-2">
-            <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Akun Belum Terlink</h2>
-            <p className="text-sm text-slate-500 font-medium leading-relaxed">
+            <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">Akun Belum Terlink</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
               Akun Anda belum tersambung dengan data pegawai SIMAP. Silakan hubungi Administrator untuk sinkronisasi email ({profile?.email}).
             </p>
           </div>
           <button 
             onClick={handleLogout}
-            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+            className="w-full py-4 bg-slate-900 dark:bg-pln-blue text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
           >
             <LogOut size={16} /> Keluar Sistem
           </button>
@@ -87,71 +88,90 @@ const EmployeeDashboard: React.FC = () => {
 
   if (!employeeData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <p className="text-slate-500">Gagal memuat data pegawai.</p>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <p className="text-slate-500 dark:text-slate-400">Gagal memuat data pegawai.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-[#F4F8FB] dark:bg-[#071120] flex flex-col transition-colors duration-200">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+      <header className="bg-white/90 dark:bg-[#0B172A]/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-6 h-18 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <PlnNpLogo className="h-9 w-auto hidden sm:block" />
-            <PlnNpLogo variant="icon" className="h-9 w-9 sm:hidden" />
-            <div className="h-7 w-px bg-slate-200 hidden sm:block" />
+            <PlnNpLogo className="h-8 w-auto hidden sm:block" />
+            <PlnNpLogo variant="icon" className="h-8 w-8 sm:hidden" />
+            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
             <div>
-              <h1 className="text-lg font-black text-slate-900 leading-none uppercase">Employee Portal</h1>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">SIMAP PLN NP UP KAPUAS</p>
+              <h1 className="text-sm font-extrabold text-[#173B65] dark:text-slate-100 leading-none uppercase tracking-tight">
+                Portal Pegawai
+              </h1>
+              <p className="text-[10px] font-bold text-[#0072BC] dark:text-[#72C8F1] uppercase tracking-widest mt-1">
+                SIMAP PLN NP UP KAPUAS
+              </p>
             </div>
           </div>
-          
-          <div className="flex items-center gap-4">
-             <div className="text-right hidden sm:block">
-               <p className="text-xs font-black text-slate-800 leading-none mb-1">{employeeData.fullName}</p>
-               <p className="text-[9px] font-bold text-pln-blue uppercase tracking-widest">{employeeData.nip}</p>
-             </div>
-             <button 
+
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <div className="text-right hidden sm:block">
+              <p className="text-xs font-bold text-[#173B65] dark:text-slate-100 leading-none mb-1">
+                {employeeData.fullName}
+              </p>
+              <p className="text-[10px] font-mono font-bold text-[#0072BC] dark:text-[#72C8F1]">
+                {employeeData.nip}
+              </p>
+            </div>
+            <button
+              type="button"
               onClick={handleLogout}
-              className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-all"
-              title="Logout"
-             >
-                <LogOut size={20} />
-             </button>
+              className="p-2.5 bg-red-50 dark:bg-red-950/50 text-red-500 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/50 transition-all"
+              title="Keluar Sistem"
+            >
+              <LogOut size={18} />
+            </button>
           </div>
         </div>
       </header>
 
-      <div className="flex-1 max-w-7xl mx-auto w-full px-6 py-10">
-        <div className="flex flex-col lg:flex-row gap-10">
+      <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-8">
+        <div className="flex flex-col lg:flex-row gap-8">
           {/* Sidebar Nav */}
-          <aside className="lg:w-64 space-y-2">
-            <button 
+          <aside className="lg:w-64 space-y-2.5 shrink-0">
+            <button
+              type="button"
               onClick={() => setActiveTab('overview')}
               className={cn(
-                "w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all",
-                activeTab === 'overview' 
-                  ? "bg-pln-blue text-white shadow-xl shadow-blue-900/10" 
-                  : "bg-white text-slate-400 hover:text-slate-600 hover:bg-slate-100 shadow-sm border border-slate-100"
+                'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all',
+                activeTab === 'overview'
+                  ? 'bg-[#0072BC] text-white shadow-sm'
+                  : 'bg-white dark:bg-[#0E1A2E] text-slate-500 dark:text-slate-300 hover:text-[#173B65] border border-slate-200/80 dark:border-slate-800'
               )}
             >
-              <LayoutDashboard size={20} />
+              <LayoutDashboard size={18} />
               Ringkasan Profil
             </button>
-            <button 
+            <button
+              type="button"
               onClick={() => setActiveTab('edit')}
               className={cn(
-                "w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all",
-                activeTab === 'edit' 
-                  ? "bg-pln-blue text-white shadow-xl shadow-blue-900/10" 
-                  : "bg-white text-slate-400 hover:text-slate-600 hover:bg-slate-100 shadow-sm border border-slate-100"
+                'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all',
+                activeTab === 'edit'
+                  ? 'bg-[#0072BC] text-white shadow-sm'
+                  : 'bg-white dark:bg-[#0E1A2E] text-slate-500 dark:text-slate-300 hover:text-[#173B65] border border-slate-200/80 dark:border-slate-800'
               )}
             >
-              <Settings size={20} />
-              Edit Informasi
+              <Settings size={18} />
+              Edit Informasi Kontak
             </button>
+
+            <div className="corporate-card p-4 space-y-2.5">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Tema Tampilan
+              </p>
+              <ThemeToggle variant="pill" className="w-full justify-between" />
+            </div>
           </aside>
 
           {/* Content Area */}
@@ -159,10 +179,11 @@ const EmployeeDashboard: React.FC = () => {
             {activeTab === 'overview' ? (
               <EmployeeDetail employee={employeeData} onBack={() => {}} />
             ) : (
-              <EmployeeForm 
-                initialData={employeeData} 
-                isProfileEdit={true} 
-                onSuccess={() => setActiveTab('overview')} 
+              <EmployeeForm
+                initialData={employeeData}
+                isProfileEdit={true}
+                onSuccess={() => setActiveTab('overview')}
+                onCancel={() => setActiveTab('overview')}
               />
             )}
           </main>

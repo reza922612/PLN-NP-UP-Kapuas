@@ -8,10 +8,13 @@ import {
   updateDoc, 
   deleteDoc, 
   doc, 
+  getDoc,
   Timestamp,
   serverTimestamp
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { logActivity } from '../lib/activityLogger';
+import { syncPublicStats } from '../lib/publicStats';
 import { Unit } from '../types';
 
 export const useUnits = () => {
@@ -72,9 +75,18 @@ export const useUnits = () => {
 
   const createUnit = async (unitData: Omit<Unit, 'id' | 'createdAt'>) => {
     try {
-      await addDoc(collection(db, 'units'), {
+      const docRef = await addDoc(collection(db, 'units'), {
         ...unitData,
         createdAt: serverTimestamp(),
+      });
+      const machineCount = Array.isArray(unitData.mesin) ? unitData.mesin.length : 0;
+      await syncPublicStats();
+      await logActivity({
+        action: 'CREATE',
+        entityType: 'unit',
+        entityId: docRef.id,
+        entityName: unitData.namaUnitLayananPusatListrik,
+        description: `Menambahkan unit pembangkit ${unitData.namaUnitLayananPusatListrik} (${machineCount} mesin)`,
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'units');
@@ -84,7 +96,26 @@ export const useUnits = () => {
   const updateUnit = async (id: string, unitData: Partial<Unit>) => {
     try {
       const docRef = doc(db, 'units', id);
+      let unitName = unitData.namaUnitLayananPusatListrik;
+      if (!unitName) {
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          unitName = (snap.data() as Unit).namaUnitLayananPusatListrik;
+        }
+      }
       await updateDoc(docRef, unitData);
+      await syncPublicStats();
+      const label = unitName || id;
+      const machineCount = Array.isArray(unitData.mesin) ? unitData.mesin.length : undefined;
+      await logActivity({
+        action: 'UPDATE',
+        entityType: 'unit',
+        entityId: id,
+        entityName: label,
+        description: machineCount !== undefined
+          ? `Memperbarui data unit ${label} (${machineCount} mesin)`
+          : `Memperbarui data unit ${label}`,
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `units/${id}`);
     }
@@ -92,7 +123,21 @@ export const useUnits = () => {
 
   const deleteUnit = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'units', id));
+      const docRef = doc(db, 'units', id);
+      let label = id;
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        label = (snap.data() as Unit).namaUnitLayananPusatListrik || id;
+      }
+      await deleteDoc(docRef);
+      await syncPublicStats();
+      await logActivity({
+        action: 'DELETE',
+        entityType: 'unit',
+        entityId: id,
+        entityName: label,
+        description: `Menghapus unit pembangkit ${label} dari sistem`,
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `units/${id}`);
     }

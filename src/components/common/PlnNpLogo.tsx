@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
+import { useTheme } from '../../context/ThemeContext';
 
 interface PlnNpLogoProps {
   variant?: 'horizontal' | 'icon';
@@ -9,11 +10,13 @@ interface PlnNpLogoProps {
 
 const PlnNpLogo: React.FC<PlnNpLogoProps> = ({
   variant = 'horizontal',
-  theme = 'light',
+  theme,
   className,
 }) => {
-  const plnLetterColor = theme === 'dark' ? '#38BDF8' : '#00A2E9';
-  const nusantaraColor = theme === 'dark' ? '#FFFFFF' : '#005DAA';
+  const { theme: activeTheme } = useTheme();
+  const effectiveTheme = theme ?? activeTheme;
+  const plnLetterColor = effectiveTheme === 'dark' ? '#38BDF8' : '#00A2E9';
+  const nusantaraColor = effectiveTheme === 'dark' ? '#FFFFFF' : '#005DAA';
 
   if (variant === 'icon') {
     return (

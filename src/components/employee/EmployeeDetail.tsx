@@ -1,217 +1,639 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Employee } from '../../types';
-import { 
-  Mail, 
-  MapPin, 
-  Phone, 
-  Award,
+import {
+  Phone,
   ArrowLeft,
-  Briefcase,
-  User,
-  ShieldCheck,
   Printer,
   Edit,
   User as UserIcon,
-  FileSpreadsheet
+  FileSpreadsheet,
+  QrCode,
+  Download,
+  Copy,
+  Check,
+  ExternalLink,
+  ScanLine,
+  FileText,
+  CheckCircle2,
+  Award,
+  BookOpen,
+  ShieldCheck,
+  Briefcase,
 } from 'lucide-react';
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
+import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
+import { logActivity } from '../../lib/activityLogger';
+import { useAuth } from '../../context/AuthContext';
+import { syncPublicVerification } from '../../lib/publicVerification';
 import { formatDate, calculateAge, calculateTenure, cn } from '../../lib/utils';
-import { motion } from 'framer-motion';
+import { SectionCard } from '../common/DashboardUI';
+import DocumentScannerModal from './DocumentScannerModal';
 
-const EmployeeDetail: React.FC<{ employee: Employee, onBack: () => void }> = ({ employee, onBack }) => {
-  
-  const InfoItem = ({ label, value }: { label: string, value: string | undefined }) => (
-    <div className="flex flex-col gap-1">
-      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{label}</p>
-      <p className="text-sm font-semibold text-slate-700">{value || '-'}</p>
+interface EmployeeDetailProps {
+  employee: Employee;
+  onBack: () => void;
+  onEdit?: () => void;
+  onPreviewVerify?: (employeeId: string) => void;
+  onUpdateEmployee?: (id: string, data: Partial<Employee>) => Promise<void>;
+}
+
+type DetailTab = 'general' | 'legal' | 'competency' | 'documents';
+
+const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
+  employee,
+  onBack,
+  onEdit,
+  onPreviewVerify,
+  onUpdateEmployee,
+}) => {
+  const { profile } = useAuth();
+  const [activeSection, setActiveSection] = useState<DetailTab>('general');
+  const [copied, setCopied] = useState(false);
+  const [syncReady, setSyncReady] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scanToast, setScanToast] = useState<string | null>(null);
+  const qrCanvasRef = useRef<HTMLDivElement>(null);
+
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
+
+  const verificationUrl = employee.id
+    ? `${window.location.origin}/?verify=${encodeURIComponent(employee.id)}`
+    : '';
+
+  useEffect(() => {
+    const isAdm = profile?.role === 'admin' || profile?.role === 'super_admin';
+    if (employee.id && isAdm) {
+      syncPublicVerification(employee.id, employee).then(() => {
+        setSyncReady(true);
+      });
+    }
+  }, [employee, profile?.role]);
+
+  const handleCopyUrl = async () => {
+    if (!verificationUrl) return;
+    try {
+      await navigator.clipboard.writeText(verificationUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API fallback ignored cleanly
+    }
+  };
+
+  const handleDownloadQR = () => {
+    const canvas = qrCanvasRef.current?.querySelector('canvas');
+    if (!canvas) return;
+    const pngUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = pngUrl;
+    link.download = `QR_Verifikasi_${employee.nip}_${employee.fullName.replace(/\s+/g, '_')}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleSaveScan = async (updates: Partial<Employee>, activityDetail: string) => {
+    if (!employee.id) return;
+    if (onUpdateEmployee) {
+      await onUpdateEmployee(employee.id, updates);
+    } else {
+      try {
+        await updateDoc(doc(db, 'employees', employee.id), {
+          ...updates,
+          updatedAt: serverTimestamp(),
+        });
+        await logActivity({
+          action: 'UPDATE',
+          entityType: 'employee',
+          entityId: employee.id,
+          entityName: `${employee.fullName} (${employee.nip})`,
+          description: activityDetail,
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `employees/${employee.id}`);
+      }
+    }
+    setScanToast('Dokumen hasil pindaian berhasil disimpan ke profil pegawai.');
+    setTimeout(() => setScanToast(null), 4000);
+  };
+
+  const InfoItem = ({ label, value }: { label: string; value?: string }) => (
+    <div className="space-y-1">
+      <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">{label}</p>
+      <p className="text-sm font-semibold text-[#173B65] dark:text-slate-100 break-words">
+        {value || '-'}
+      </p>
     </div>
   );
 
-  const ContactItem = ({ label, value }: { label: string, value: string | undefined }) => (
-    <div className="flex flex-col gap-1">
-      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{label}</p>
-      <p className="text-xs font-bold text-slate-600 truncate">{value || '-'}</p>
-    </div>
-  );
-
-  const TabButton = ({ active, label }: { active: boolean, label: string }) => (
-    <button className={cn(
-      "px-6 py-4 text-xs font-bold uppercase tracking-wide transition-all border-b-2",
-      active ? "border-pln-blue text-pln-blue bg-blue-50/30" : "border-transparent text-slate-400 hover:text-slate-600"
-    )}>
-      {label}
-    </button>
-  );
-
-  const InfoSection = ({ title, children, columns = 3 }: { title: string, children: React.ReactNode, columns?: number }) => (
-    <div className="space-y-4">
-      <h5 className="text-[11px] font-bold text-pln-blue uppercase tracking-widest border-b border-blue-50 pb-2">{title}</h5>
-      <div className={cn(
-        "grid grid-cols-2 gap-6",
-        columns === 3 ? "lg:grid-cols-3" : "lg:grid-cols-2"
-      )}>
-        {children}
-      </div>
-    </div>
-  );
+  const tabs: { id: DetailTab; label: string; icon: React.ElementType }[] = [
+    { id: 'general', label: 'Informasi Umum', icon: Briefcase },
+    { id: 'legal', label: 'Pendidikan & Legal', icon: ShieldCheck },
+    { id: 'competency', label: 'Pelatihan & Sertifikasi', icon: Award },
+    { id: 'documents', label: 'Arsip Scan & Dokumen', icon: FileText },
+  ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
-      <div className="flex items-center justify-between bg-white p-6 rounded-xl shadow-sm">
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={onBack}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
-          >
-            <ArrowLeft size={20} />
-          </button>
+    <div className="max-w-6xl mx-auto space-y-6 pb-16">
+      {/* Top Action Header */}
+      <div className="corporate-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          {profile?.role !== 'employee' && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="p-2.5 bg-[#F4F8FB] dark:bg-slate-800 hover:bg-[#EAF6FC] dark:hover:bg-slate-700 rounded-xl transition-colors text-[#173B65] dark:text-slate-200"
+              title="Kembali ke Daftar"
+            >
+              <ArrowLeft size={18} />
+            </button>
+          )}
           <div>
-            <h2 className="text-xl font-bold text-slate-800">Detail Profil Pegawai</h2>
-            <p className="text-slate-500 text-xs font-medium uppercase tracking-wider">{employee.nip} • {employee.status}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-extrabold text-[#173B65] dark:text-slate-100 tracking-tight">
+                {employee.fullName}
+              </h2>
+              <span
+                className={cn(
+                  'px-2 py-0.5 rounded-md text-[10px] font-bold uppercase',
+                  employee.status === 'Pegawai Organik'
+                    ? 'bg-[#EAF6FC] dark:bg-[#0072BC]/25 text-[#0072BC] dark:text-[#72C8F1]'
+                    : employee.status === 'Pegawai Tugas Khusus'
+                    ? 'bg-amber-50 dark:bg-[#F9D423]/15 text-amber-700 dark:text-[#F9D423]'
+                    : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                )}
+              >
+                {employee.status}
+              </span>
+            </div>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
+              NIP {employee.nip} · {employee.unitPelaksana}
+            </p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors uppercase">
+
+        <div className="flex flex-wrap items-center gap-2">
+          {isAdmin && employee.id && (
+            <button
+              type="button"
+              onClick={() => setIsScannerOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-colors shadow-xs"
+            >
+              <ScanLine size={14} />
+              Scan Dokumen
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white dark:bg-[#0E1A2E] border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-[#173B65] dark:text-slate-200 hover:border-[#0072BC] transition-colors"
+          >
             <Printer size={14} />
             Cetak Profil
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-pln-blue text-white rounded-lg text-xs font-bold hover:bg-pln-dark transition-colors uppercase shadow-md shadow-blue-100">
-            <Edit size={14} />
-            Edit Data
-          </button>
+          {onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0072BC] text-white rounded-xl text-xs font-bold hover:bg-[#173B65] transition-colors shadow-xs"
+            >
+              <Edit size={14} />
+              Edit Data
+            </button>
+          )}
         </div>
       </div>
 
+      {scanToast && (
+        <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 px-5 py-3.5 rounded-2xl flex items-center gap-3 text-xs font-bold">
+          <CheckCircle2 size={18} className="shrink-0" />
+          <span>{scanToast}</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Sidebar Profile Summary + QR */}
         <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white p-6 rounded-2xl shadow-sm text-center border border-slate-100 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-pln-blue"></div>
-            <div className="w-40 h-40 bg-slate-50 rounded-3xl mx-auto mb-6 flex items-center justify-center text-slate-200 ring-4 ring-slate-50 overflow-hidden">
+          <div className="corporate-card p-6 text-center relative overflow-hidden">
+            <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-[#0072BC] via-[#72C8F1] to-[#F9D423]" />
+            <div className="w-36 h-36 bg-[#EAF6FC] dark:bg-slate-800 rounded-2xl mx-auto mb-5 flex items-center justify-center text-[#0072BC]/40 dark:text-slate-600 ring-4 ring-[#F4F8FB] dark:ring-slate-800 overflow-hidden mt-2">
               {employee.photoUrl ? (
-                <img src={employee.photoUrl} alt={employee.fullName} className="w-full h-full object-cover" />
+                <img
+                  src={employee.photoUrl}
+                  alt={employee.fullName}
+                  className="w-full h-full object-cover"
+                />
               ) : (
-                <UserIcon size={80} />
+                <UserIcon size={68} />
               )}
             </div>
-            <h3 className="text-xl font-black text-slate-800 tracking-tight leading-tight mb-1">{employee.fullName}</h3>
-            <p className="text-xs font-bold text-pln-blue mb-6 uppercase tracking-widest">{employee.jabatanLengkap}</p>
-            
-            <div className="grid grid-cols-2 gap-4 py-6 border-y border-slate-50">
-              <div className="text-center">
-                <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Masa Kerja</p>
-                <p className="text-sm font-black text-slate-700">{calculateTenure(employee.tanggalPengangkatan)}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Umur</p>
-                <p className="text-sm font-black text-slate-700">{calculateAge(employee.tanggalLahir)} Thn</p>
-              </div>
-            </div>
+            <h3 className="text-lg font-extrabold text-[#173B65] dark:text-slate-100 leading-snug">
+              {employee.fullName}
+            </h3>
+            <p className="text-xs font-bold text-[#0072BC] dark:text-[#72C8F1] mt-1">
+              {employee.jabatanLengkap}
+            </p>
+            <p className="text-[11px] font-medium text-slate-400 mt-1">
+              {employee.perusahaan}
+            </p>
 
-            <div className="pt-6">
-              <p className="text-[10px] text-slate-400 font-bold uppercase mb-2 tracking-widest">Perusahaan</p>
-              <p className="text-xs font-black text-slate-600 uppercase tracking-tight">{employee.perusahaan}</p>
+            <div className="grid grid-cols-2 gap-3 mt-5 pt-5 border-t border-slate-100 dark:border-slate-800">
+              <div className="p-3 rounded-xl bg-[#F4F8FB] dark:bg-slate-800/60">
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Masa Kerja</p>
+                <p className="text-xs font-extrabold text-[#173B65] dark:text-slate-100 mt-0.5 tabular-nums">
+                  {calculateTenure(employee.tanggalPengangkatan)}
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-[#F4F8FB] dark:bg-slate-800/60">
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Usia</p>
+                <p className="text-xs font-extrabold text-[#173B65] dark:text-slate-100 mt-0.5 tabular-nums">
+                  {calculateAge(employee.tanggalLahir)} Tahun
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm space-y-6 border border-slate-100">
-            <h4 className="font-bold text-slate-800 flex items-center gap-2 border-b border-slate-50 pb-3 mb-4 uppercase text-[10px] tracking-widest">
-              <Phone size={14} className="text-pln-blue" />
-              Informasi Kontak
-            </h4>
-            <ContactItem label="Email Korporat" value={employee.emailKorporat} />
-            <ContactItem label="Nomor Telepon" value={employee.noTelepon} />
-            <ContactItem label="Alamat" value={employee.alamatLengkap} />
-          </div>
+          <SectionCard title="Informasi Kontak" icon={Phone}>
+            <div className="space-y-4">
+              <div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Email Korporat</p>
+                <p className="text-xs font-bold text-[#173B65] dark:text-slate-200 truncate mt-0.5">
+                  {employee.emailKorporat || '-'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Nomor Telepon</p>
+                <p className="text-xs font-bold text-[#173B65] dark:text-slate-200 font-mono mt-0.5">
+                  {employee.noTelepon || '-'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Alamat Lengkap</p>
+                <p className="text-xs font-medium text-slate-600 dark:text-slate-300 leading-relaxed mt-0.5">
+                  {employee.alamatLengkap || '-'}
+                </p>
+              </div>
+            </div>
+          </SectionCard>
 
           {employee.dossierUrl && (
-            <a 
-              href={employee.dossierUrl} 
-              target="_blank" 
+            <a
+              href={employee.dossierUrl}
+              target="_blank"
               rel="noreferrer"
-              className="flex items-center justify-center gap-3 w-full p-4 bg-emerald-50 border border-emerald-100 rounded-2xl text-emerald-600 font-black text-xs uppercase tracking-widest hover:bg-emerald-100 transition-all"
+              className="flex items-center justify-center gap-2.5 w-full p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-2xl text-emerald-700 dark:text-emerald-400 font-bold text-xs hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
             >
-              <FileSpreadsheet size={18} />
-              Open Digital Dossier
+              <FileSpreadsheet size={17} />
+              Buka Digital Dossier Pegawai
             </a>
+          )}
+
+          {employee.id && (
+            <SectionCard
+              title="QR Verifikasi ID"
+              icon={QrCode}
+              action={
+                <span
+                  className={cn(
+                    'text-[10px] font-bold uppercase px-2 py-0.5 rounded-md',
+                    syncReady
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-[#EAF6FC] dark:bg-[#0072BC]/20 text-[#0072BC] dark:text-[#72C8F1]'
+                  )}
+                >
+                  {syncReady ? 'Tersinkron' : 'Publik ID'}
+                </span>
+              }
+            >
+              <div className="space-y-4">
+                <div className="flex flex-col items-center justify-center p-4 bg-[#F4F8FB] dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2.5">
+                  <div className="p-2.5 bg-white rounded-xl shadow-xs border border-slate-100">
+                    <QRCodeSVG
+                      value={verificationUrl}
+                      size={140}
+                      level="M"
+                      fgColor="#173B65"
+                      bgColor="#FFFFFF"
+                    />
+                  </div>
+                  <div ref={qrCanvasRef} className="hidden" aria-hidden="true">
+                    <QRCodeCanvas
+                      value={verificationUrl}
+                      size={512}
+                      level="H"
+                      includeMargin={true}
+                      fgColor="#173B65"
+                      bgColor="#FFFFFF"
+                    />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs font-bold text-[#173B65] dark:text-slate-100">
+                      {employee.fullName}
+                    </p>
+                    <p className="text-[10px] font-mono text-slate-400 font-semibold">
+                      NIP {employee.nip}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed text-center">
+                  Pindai QR untuk membuka halaman verifikasi kartu pegawai resmi tanpa data pribadi sensitif.
+                </p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDownloadQR}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-[#0072BC] text-white rounded-xl text-xs font-bold hover:bg-[#173B65] transition-colors"
+                  >
+                    <Download size={13} />
+                    Unduh PNG
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopyUrl}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-[#F4F8FB] dark:bg-slate-800 text-[#173B65] dark:text-slate-200 rounded-xl text-xs font-bold hover:bg-[#EAF6FC] dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-700"
+                  >
+                    {copied ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                    {copied ? 'Tersalin' : 'Salin Link'}
+                  </button>
+                </div>
+
+                {onPreviewVerify && (
+                  <button
+                    type="button"
+                    onClick={() => onPreviewVerify(employee.id!)}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 border border-slate-200 dark:border-slate-700 text-[#173B65] dark:text-slate-300 rounded-xl text-xs font-bold hover:border-[#0072BC] hover:text-[#0072BC] dark:hover:text-[#72C8F1] transition-colors"
+                  >
+                    <ExternalLink size={13} />
+                    Pratinjau Halaman Verifikasi
+                  </button>
+                )}
+              </div>
+            </SectionCard>
           )}
         </div>
 
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <div className="flex border-b border-slate-50 bg-slate-50/50">
-              <TabButton active={true} label="Informasi Umum" />
-              <TabButton active={false} label="Pendidikan" />
-              <TabButton active={false} label="Riwayat" />
+        {/* Right Detail Tabs & Content */}
+        <div className="lg:col-span-2">
+          <div className="corporate-card overflow-hidden">
+            <div className="flex overflow-x-auto border-b border-slate-100 dark:border-slate-800 bg-[#F8FBFD] dark:bg-[#11223B]/60">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const active = activeSection === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveSection(tab.id)}
+                    className={cn(
+                      'flex items-center gap-2 px-5 py-3.5 text-xs font-bold whitespace-nowrap transition-all border-b-2',
+                      active
+                        ? 'border-[#0072BC] dark:border-[#72C8F1] text-[#0072BC] dark:text-[#72C8F1] bg-white dark:bg-[#0E1A2E]'
+                        : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-[#173B65] dark:hover:text-slate-200'
+                    )}
+                  >
+                    <Icon size={14} />
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
-            <div className="p-10 space-y-12">
-              <InfoSection title="Informasi Kepegawaian Detail">
-                <InfoItem label="Nama Lengkap" value={employee.fullName} />
-                <InfoItem label="NIP" value={employee.nip} />
-                <InfoItem label="Unit Pelaksana" value={employee.unitPelaksana} />
-                <InfoItem label="Sub Unit" value={employee.subUnit} />
-                <InfoItem label="Person Grade" value={employee.personGrade} />
-                <InfoItem label="Position Grade" value={employee.positionGrade} />
-                <InfoItem label="Pendidikan Terakhir" value={employee.pendidikanTerakhir} />
-                <InfoItem label="Jenis Kelamin" value={employee.jenisKelamin} />
-                <InfoItem label="Agama" value={employee.agama} />
-              </InfoSection>
 
-              <InfoSection title="Administrasi Tanggal">
-                <InfoItem label="Tanggal Masuk" value={formatDate(employee.tanggalMasuk)} />
-                <InfoItem label="Tanggal CP" value={formatDate(employee.tanggalCalonPegawai)} />
-                <InfoItem label="Tanggal Pengangkatan" value={formatDate(employee.tanggalPengangkatan)} />
-                <InfoItem label="Mulai Jabatan" value={formatDate(employee.tanggalMulaiJabatan)} />
-                <InfoItem label="Tgl Pensiun Normal" value={formatDate(employee.tanggalPensiunNormal)} />
-                <InfoItem label="Tgl Berakhir" value={formatDate(employee.tanggalBerakhirBekerja)} />
-              </InfoSection>
-
-              <InfoSection title="Legal & Identitas">
-                <InfoItem label="Nomor KTP" value={employee.noKTP} />
-                <InfoItem label="Nomor NPWP" value={employee.noNPWP} />
-                <InfoItem label="BPJS Kesehatan" value={employee.noBPJSKesehatan} />
-                <InfoItem label="BPJS Ketenagakerjaan" value={employee.noBPJSKetenagakerjaan} />
-              </InfoSection>
-
-              <div className="space-y-6">
-                <h5 className="text-[11px] font-bold text-pln-blue uppercase tracking-widest border-b border-blue-50 pb-2">Riwayat Pelatihan & Sertifikasi</h5>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="p-6 sm:p-8 space-y-8">
+              {activeSection === 'general' && (
+                <>
                   <div className="space-y-4">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pelatihan</p>
+                    <h4 className="text-xs font-extrabold text-[#0072BC] dark:text-[#72C8F1] uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2">
+                      Informasi Kepegawaian &amp; Organisasi
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                      <InfoItem label="Nama Lengkap" value={employee.fullName} />
+                      <InfoItem label="NIP" value={employee.nip} />
+                      <InfoItem label="Jabatan Lengkap" value={employee.jabatanLengkap} />
+                      <InfoItem label="Unit Pelaksana" value={employee.unitPelaksana} />
+                      <InfoItem label="Sub Unit" value={employee.subUnit} />
+                      <InfoItem label="Perusahaan" value={employee.perusahaan} />
+                      <InfoItem label="Person Grade" value={employee.personGrade} />
+                      <InfoItem label="Position Grade" value={employee.positionGrade} />
+                      <InfoItem label="Status Pegawai" value={employee.status} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-extrabold text-[#0072BC] dark:text-[#72C8F1] uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2">
+                      Administrasi Tanggal Penting
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                      <InfoItem label="Tanggal Lahir" value={formatDate(employee.tanggalLahir)} />
+                      <InfoItem label="Tanggal Masuk" value={formatDate(employee.tanggalMasuk)} />
+                      <InfoItem label="Tanggal CP" value={formatDate(employee.tanggalCalonPegawai)} />
+                      <InfoItem label="Tanggal Pengangkatan" value={formatDate(employee.tanggalPengangkatan)} />
+                      <InfoItem label="Mulai Jabatan" value={formatDate(employee.tanggalMulaiJabatan)} />
+                      <InfoItem label="Tgl Pensiun Normal" value={formatDate(employee.tanggalPensiunNormal)} />
+                      <InfoItem label="Tgl Berakhir" value={formatDate(employee.tanggalBerakhirBekerja)} />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {activeSection === 'legal' && (
+                <>
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-extrabold text-[#0072BC] dark:text-[#72C8F1] uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2">
+                      Profil Personal &amp; Pendidikan
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                      <InfoItem label="Pendidikan Terakhir" value={employee.pendidikanTerakhir} />
+                      <InfoItem label="Jenis Kelamin" value={employee.jenisKelamin} />
+                      <InfoItem label="Agama" value={employee.agama} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-extrabold text-[#0072BC] dark:text-[#72C8F1] uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2">
+                      Identitas Legal &amp; Jaminan Sosial
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <InfoItem label="Nomor KTP (NIK)" value={employee.noKTP} />
+                      <InfoItem label="Nomor NPWP" value={employee.noNPWP} />
+                      <InfoItem label="BPJS Kesehatan" value={employee.noBPJSKesehatan} />
+                      <InfoItem label="BPJS Ketenagakerjaan" value={employee.noBPJSKetenagakerjaan} />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {activeSection === 'competency' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-extrabold text-[#0072BC] dark:text-[#72C8F1] uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+                      <BookOpen size={14} /> Riwayat Pelatihan ({employee.trainings?.length || 0})
+                    </h4>
                     {employee.trainings && employee.trainings.length > 0 ? (
-                      <div className="space-y-3">
+                      <div className="space-y-2.5">
                         {employee.trainings.map((t, i) => (
-                          <div key={i} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-xs font-black text-slate-700">{t.namaPelatihan}</p>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase">{formatDate(t.tanggalPelaksanaan)}</p>
+                          <div
+                            key={i}
+                            className="p-3.5 bg-[#F4F8FB] dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-[#173B65] dark:text-slate-100 truncate">
+                                {t.namaPelatihan}
+                              </p>
+                              <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                {formatDate(t.tanggalPelaksanaan)}
+                              </p>
+                            </div>
+                            {t.certificateUrl && (
+                              <a
+                                href={t.certificateUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-2 rounded-lg bg-white dark:bg-[#0E1A2E] border border-slate-200 dark:border-slate-700 text-[#0072BC] dark:text-[#72C8F1] hover:bg-[#0072BC] hover:text-white transition-colors shrink-0"
+                                title="Lihat Dokumen Pelatihan"
+                              >
+                                <FileText size={14} />
+                              </a>
+                            )}
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-slate-300 italic">Belum ada riwayat pelatihan</p>
+                      <p className="text-xs text-slate-400 italic py-4">
+                        Belum ada riwayat pelatihan tercatat.
+                      </p>
                     )}
                   </div>
-                  <div className="space-y-4">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sertifikasi</p>
+
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-extrabold text-[#0072BC] dark:text-[#72C8F1] uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+                      <Award size={14} /> Sertifikasi ({employee.certifications?.length || 0})
+                    </h4>
                     {employee.certifications && employee.certifications.length > 0 ? (
-                      <div className="space-y-3">
+                      <div className="space-y-2.5">
                         {employee.certifications.map((c, i) => (
-                          <div key={i} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-xs font-black text-slate-700">{c.namaSertifikasi}</p>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase">
-                              {formatDate(c.tanggalPelaksanaan)} • Exp: {formatDate(c.masaBerlaku)}
-                            </p>
+                          <div
+                            key={i}
+                            className="p-3.5 bg-[#F4F8FB] dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-[#173B65] dark:text-slate-100 truncate">
+                                {c.namaSertifikasi}
+                              </p>
+                              <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                Terbit: {formatDate(c.tanggalPelaksanaan)} · Berlaku: {formatDate(c.masaBerlaku)}
+                              </p>
+                            </div>
+                            {c.certificateUrl && (
+                              <a
+                                href={c.certificateUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-2 rounded-lg bg-white dark:bg-[#0E1A2E] border border-slate-200 dark:border-slate-700 text-[#0072BC] dark:text-[#72C8F1] hover:bg-[#0072BC] hover:text-white transition-colors shrink-0"
+                                title="Lihat Sertifikat"
+                              >
+                                <FileText size={14} />
+                              </a>
+                            )}
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-slate-300 italic">Belum ada riwayat sertifikasi</p>
+                      <p className="text-xs text-slate-400 italic py-4">
+                        Belum ada riwayat sertifikasi tercatat.
+                      </p>
                     )}
                   </div>
                 </div>
-              </div>
+              )}
+
+              {activeSection === 'documents' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                    <h4 className="text-xs font-extrabold text-[#0072BC] dark:text-[#72C8F1] uppercase tracking-wider">
+                      Dokumen Fisik Terpindai ({employee.scannedDocuments?.length || 0})
+                    </h4>
+                    {isAdmin && employee.id && (
+                      <button
+                        type="button"
+                        onClick={() => setIsScannerOpen(true)}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                      >
+                        <ScanLine size={13} />
+                        + Pindai Baru
+                      </button>
+                    )}
+                  </div>
+
+                  {employee.scannedDocuments && employee.scannedDocuments.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {employee.scannedDocuments.map((docItem, idx) => (
+                        <div
+                          key={docItem.id || idx}
+                          className="p-3.5 bg-[#F4F8FB] dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center gap-3.5 hover:border-[#0072BC]/40 transition-colors"
+                        >
+                          <a
+                            href={docItem.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-14 h-14 rounded-xl bg-white dark:bg-[#0E1A2E] border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center"
+                          >
+                            <img
+                              src={docItem.fileUrl}
+                              alt={docItem.title}
+                              className="w-full h-full object-cover"
+                            />
+                          </a>
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <span className="inline-block px-2 py-0.5 rounded bg-[#EAF6FC] dark:bg-[#0072BC]/20 text-[#0072BC] dark:text-[#72C8F1] text-[10px] font-bold">
+                              {docItem.category}
+                            </span>
+                            <p className="text-xs font-bold text-[#173B65] dark:text-slate-100 truncate">
+                              {docItem.title}
+                            </p>
+                            {docItem.notes && (
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                {docItem.notes}
+                              </p>
+                            )}
+                            <p className="text-[10px] text-slate-400 font-medium">
+                              Scan: {formatDate(docItem.scannedAt)}
+                            </p>
+                          </div>
+                          <a
+                            href={docItem.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-2 rounded-xl bg-white dark:bg-[#0E1A2E] border border-slate-200 dark:border-slate-700 text-[#0072BC] dark:text-[#72C8F1] hover:bg-[#0072BC] hover:text-white transition-colors shrink-0"
+                            title="Buka Hasil Scan"
+                          >
+                            <ExternalLink size={14} />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic py-6 text-center">
+                      Belum ada dokumen fisik yang dipindai melalui kamera.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {isScannerOpen && (
+        <DocumentScannerModal
+          employee={employee}
+          isOpen={isScannerOpen}
+          onClose={() => setIsScannerOpen(false)}
+          onSaveScan={handleSaveScan}
+        />
+      )}
     </div>
   );
 };
