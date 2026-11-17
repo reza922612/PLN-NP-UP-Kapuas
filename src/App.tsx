@@ -48,18 +48,7 @@ const MainApp: React.FC = () => {
   }
 
   if (!user && showLogin) {
-    return (
-      <div className="relative">
-        <button 
-          onClick={() => setShowLogin(false)}
-          className="absolute top-8 left-8 z-50 flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-lg border border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-pln-blue transition-all"
-        >
-          <div className="w-5 h-5 rounded bg-slate-100 flex items-center justify-center">←</div>
-          Kembali
-        </button>
-        <Login />
-      </div>
-    );
+    return <Login onBack={() => setShowLogin(false)} />;
   }
 
   if (profile?.role === 'employee') {

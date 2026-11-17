@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
-import { ShieldCheck, Mail, Lock, Loader2, AlertCircle, UserPlus, LogIn } from 'lucide-react';
+import { ShieldCheck, Mail, Lock, Loader2, AlertCircle, UserPlus, ArrowLeft } from 'lucide-react';
 import { motion } from 'motion/react';
 import PlnNpLogo from '../common/PlnNpLogo';
 
-const Login: React.FC = () => {
+interface LoginProps {
+  onBack?: () => void;
+}
+
+const Login: React.FC<LoginProps> = ({ onBack }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -86,6 +90,18 @@ const Login: React.FC = () => {
             <p className="text-lg text-white/80 leading-relaxed font-medium">
               Sistem manajemen kepegawaian modern untuk PT PLN Nusantara Power Unit Pembangkitan Kapuas. Dashboard terpadu untuk efisiensi operasional.
             </p>
+            {onBack && (
+              <div className="mt-10 flex justify-center">
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="flex items-center gap-2.5 px-6 py-3 bg-white text-slate-700 rounded-xl shadow-xl shadow-blue-950/20 text-xs font-black uppercase tracking-widest hover:bg-cyan-50 hover:text-pln-blue transition-all active:scale-95"
+                >
+                  <ArrowLeft size={15} />
+                  Kembali
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -197,13 +213,25 @@ const Login: React.FC = () => {
             </button>
           </form>
           
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-4">
              <button 
                onClick={() => { setIsLogin(!isLogin); setError(null); }}
                className="text-xs font-bold text-slate-500 hover:text-pln-blue transition-colors"
              >
                {isLogin ? 'Belum punya akun? Daftar di sini' : 'Sudah punya akun? Masuk di sini'}
              </button>
+             {onBack && (
+               <div className="flex justify-center lg:hidden pt-1">
+                 <button
+                   type="button"
+                   onClick={onBack}
+                   className="flex items-center gap-2 px-5 py-2.5 bg-white rounded-xl shadow-md border border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-pln-blue transition-all"
+                 >
+                   <ArrowLeft size={14} />
+                   Kembali
+                 </button>
+               </div>
+             )}
           </div>
 
           <div className="mt-16 text-center">
