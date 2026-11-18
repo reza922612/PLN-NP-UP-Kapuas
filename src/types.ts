@@ -115,7 +115,7 @@ export interface OrgNode {
 }
 
 export type ActivityAction = 'CREATE' | 'UPDATE' | 'DELETE';
-export type ActivityEntityType = 'employee' | 'unit' | 'system';
+export type ActivityEntityType = 'employee' | 'unit' | 'system' | 'sppd';
 
 export interface ActivityLog {
   id?: string;
@@ -171,3 +171,78 @@ export interface PublicStats {
   unitSummaries?: PublicUnitSummary[];
   updatedAt: any;
 }
+
+export interface BiometricCredentialRecord {
+  id: string;
+  userId: string;
+  email: string;
+  credentialId: string;
+  deviceName: string;
+  rpId: string;
+  authenticatorType: 'platform';
+  createdAt: any;
+  lastUsedAt: any;
+}
+
+export type SppdStatus =
+  | 'Draft'
+  | 'Submitted'
+  | 'Menunggu Approval'
+  | 'Approved'
+  | 'Rejected'
+  | 'Completed';
+
+export type SppdType = 'SPPD Diklat' | 'SPPD Non Diklat';
+
+export type SppdTransportType =
+  | 'Pesawat (Angkutan Udara)'
+  | 'Bus / Taksi (Angkutan Darat)'
+  | 'Kendaraan Dinas';
+
+export type SppdUnitWork =
+  | 'UP Kapuas'
+  | 'ULPLTD Sei Raya'
+  | 'ULPLTG/D Siantan'
+  | 'ULPLTD Sanggau dan Sintang'
+  | 'ULPLTD Ketapang';
+
+export interface SppdAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url: string;
+  uploadedAt: string;
+}
+
+export interface SppdRequest {
+  id?: string;
+  requestNumber: string;
+  applicantUid: string;
+  applicantEmail: string;
+  employeeId?: string | null;
+  namaPegawai: string;
+  nip: string;
+  jabatan: string;
+  bidang: string;
+  unitKerja: SppdUnitWork;
+  jenisSppd: SppdType;
+  judulPerjalanan: string;
+  tanggalKeberangkatan: string;
+  tanggalKembali: string;
+  nomorPrk: string;
+  nomorCoa: string;
+  jenisTransportasi: SppdTransportType;
+  kotaKeberangkatan: string;
+  kotaTujuan: string;
+  dokumenPendukung: SppdAttachment[];
+  status: SppdStatus;
+  approvalNotes?: string | null;
+  approvedByName?: string | null;
+  approvedByUid?: string | null;
+  submittedAt?: any;
+  createdAt: any;
+  updatedAt: any;
+}
+
+

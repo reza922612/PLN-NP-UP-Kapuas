@@ -19,7 +19,12 @@ import {
   Pencil,
   CheckCircle2,
   X,
+  FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { useUnits } from '../../hooks/useUnits';
 import { Unit } from '../../types';
 import { APIProvider, Map, AdvancedMarker, Pin } from '@vis.gl/react-google-maps';
@@ -71,6 +76,8 @@ const UnitManagement: React.FC = () => {
   const [expandedUnit, setExpandedUnit] = useState<string | null>(null);
   const [showMapKeyHelp, setShowMapKeyHelp] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<'excel' | 'pdf' | null>(null);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
 
   const {
     register,
@@ -108,6 +115,345 @@ const UnitManagement: React.FC = () => {
       0
     );
   }, [units]);
+
+  const handleExportExcel = () => {
+    if (units.length === 0) return;
+    setExportingFormat('excel');
+    try {
+      const todaySlug = new Date().toISOString().slice(0, 10);
+
+      const unitRows = units.map((unit, idx) => {
+        const machines = unit.mesin || [];
+        const totalDmn = machines.reduce((acc, m) => acc + (Number(m.dayaMampuNominal) || 0), 0);
+        const totalBp = machines.reduce((acc, m) => acc + (Number(m.bebanPuncak) || 0), 0);
+        const utilPct = totalDmn > 0 ? Math.round((totalBp / totalDmn) * 100) : 0;
+        const machineTypes = Array.from(
+          new Set(machines.map((m) => m.jenisMesin).filter(Boolean))
+        ).join(', ');
+        const systems = Array.from(
+          new Set(machines.map((m) => m.sistem).filter(Boolean))
+        ).join(', ');
+
+        return {
+          No: idx + 1,
+          'Nama Unit Layanan': unit.namaUnitLayananPusatListrik || '-',
+          'Alamat Lengkap': (unit as any).alamatLengkap || unit.alamat || '-',
+          Latitude: unit.latitude ?? '-',
+          Longitude: unit.longitude ?? '-',
+          'Jumlah Mesin': machines.length,
+          'Jenis Pembangkit': machineTypes || '-',
+          'Sistem Kelistrikan': systems || '-',
+          'Total DMN (kW)': totalDmn,
+          'Total Beban Puncak (kW)': totalBp,
+          'Rasio Utilisasi (%)': utilPct,
+        };
+      });
+
+      const overallUtilPct =
+        unitStats.totalCapacity > 0
+          ? Math.round((totalPeakLoad / unitStats.totalCapacity) * 100)
+          : 0;
+
+      unitRows.push({
+        No: '' as any,
+        'Nama Unit Layanan': 'TOTAL UP KAPUAS',
+        'Alamat Lengkap': `${unitStats.totalUnits} Unit Layanan`,
+        Latitude: '-' as any,
+        Longitude: '-' as any,
+        'Jumlah Mesin': unitStats.totalMachines,
+        'Jenis Pembangkit': '-',
+        'Sistem Kelistrikan': '-',
+        'Total DMN (kW)': unitStats.totalCapacity,
+        'Total Beban Puncak (kW)': totalPeakLoad,
+        'Rasio Utilisasi (%)': overallUtilPct,
+      });
+
+      const machineRows: Record<string, string | number>[] = [];
+      let machineCounter = 0;
+      units.forEach((unit) => {
+        const machines = unit.mesin || [];
+        if (machines.length === 0) {
+          machineCounter += 1;
+          machineRows.push({
+            No: machineCounter,
+            'Unit Layanan': unit.namaUnitLayananPusatListrik || '-',
+            'Nama Mesin': 'Belum ada mesin terdaftar',
+            'Tipe Mesin': '-',
+            'Nomor Seri': '-',
+            'Jenis Mesin': '-',
+            'Sistem Kelistrikan': '-',
+            'DMN (kW)': 0,
+            'Beban Puncak (kW)': 0,
+            'Utilisasi (%)': 0,
+          });
+          return;
+        }
+        machines.forEach((m) => {
+          machineCounter += 1;
+          const dmn = Number(m.dayaMampuNominal) || 0;
+          const bp = Number(m.bebanPuncak) || 0;
+          machineRows.push({
+            No: machineCounter,
+            'Unit Layanan': unit.namaUnitLayananPusatListrik || '-',
+            'Nama Mesin': m.namaMesin || '-',
+            'Tipe Mesin': m.typeMesin || '-',
+            'Nomor Seri': m.nomorSeri || '-',
+            'Jenis Mesin': m.jenisMesin || '-',
+            'Sistem Kelistrikan': m.sistem || '-',
+            'DMN (kW)': dmn,
+            'Beban Puncak (kW)': bp,
+            'Utilisasi (%)': dmn > 0 ? Math.round((bp / dmn) * 100) : 0,
+          });
+        });
+      });
+
+      const wb = XLSX.utils.book_new();
+      const wsUnits = XLSX.utils.json_to_sheet(unitRows);
+      wsUnits['!cols'] = [
+        { wch: 5 },
+        { wch: 28 },
+        { wch: 36 },
+        { wch: 11 },
+        { wch: 11 },
+        { wch: 13 },
+        { wch: 18 },
+        { wch: 24 },
+        { wch: 16 },
+        { wch: 22 },
+        { wch: 18 },
+      ];
+      XLSX.utils.book_append_sheet(wb, wsUnits, 'Ringkasan Unit');
+
+      const wsMachines = XLSX.utils.json_to_sheet(machineRows);
+      wsMachines['!cols'] = [
+        { wch: 5 },
+        { wch: 28 },
+        { wch: 22 },
+        { wch: 16 },
+        { wch: 18 },
+        { wch: 14 },
+        { wch: 22 },
+        { wch: 14 },
+        { wch: 18 },
+        { wch: 14 },
+      ];
+      XLSX.utils.book_append_sheet(wb, wsMachines, 'Detail Mesin');
+
+      XLSX.writeFile(wb, `Laporan_Unit_Pembangkit_UP_Kapuas_${todaySlug}.xlsx`);
+      setExportNotice('Laporan Excel (.xlsx) data unit & mesin berhasil diunduh.');
+      setTimeout(() => setExportNotice(null), 4000);
+    } finally {
+      setExportingFormat(null);
+    }
+  };
+
+  const handleExportPDF = () => {
+    if (units.length === 0) return;
+    setExportingFormat('pdf');
+    try {
+      const todaySlug = new Date().toISOString().slice(0, 10);
+      const printedAt = new Date().toLocaleString('id-ID', {
+        dateStyle: 'long',
+        timeStyle: 'short',
+      });
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      // Corporate Header Banner
+      doc.setFillColor(0, 114, 188);
+      doc.rect(0, 0, pageWidth, 24, 'F');
+      doc.setFillColor(249, 212, 35);
+      doc.rect(0, 24, pageWidth, 1.8, 'F');
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('LAPORAN DATA UNIT LAYANAN & ASET MESIN PEMBANGKIT', 14, 11);
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(
+        `PT PLN Nusantara Power Unit Pembangkitan Kapuas  |  Dicetak: ${printedAt}`,
+        14,
+        18
+      );
+
+      // Executive Summary Strip
+      const overallUtil =
+        unitStats.totalCapacity > 0
+          ? Math.round((totalPeakLoad / unitStats.totalCapacity) * 100)
+          : 0;
+
+      doc.setFillColor(234, 246, 252);
+      doc.roundedRect(14, 30, pageWidth - 28, 14, 2, 2, 'F');
+      doc.setTextColor(23, 59, 101);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text(
+        `Total Unit: ${unitStats.totalUnits}    |    Total Mesin: ${unitStats.totalMachines}    |    Total DMN: ${Number(
+          unitStats.totalCapacity || 0
+        ).toLocaleString('id-ID')} kW    |    Beban Puncak: ${totalPeakLoad.toLocaleString(
+          'id-ID'
+        )} kW    |    Utilisasi: ${overallUtil}%`,
+        18,
+        38.5
+      );
+
+      // Table 1: Ringkasan Unit Layanan
+      doc.setFontSize(10.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(23, 59, 101);
+      doc.text('1. Ringkasan Unit Layanan Pembangkitan', 14, 52);
+
+      const unitTableBody = units.map((unit, idx) => {
+        const machines = unit.mesin || [];
+        const totalDmn = machines.reduce((acc, m) => acc + (Number(m.dayaMampuNominal) || 0), 0);
+        const totalBp = machines.reduce((acc, m) => acc + (Number(m.bebanPuncak) || 0), 0);
+        const utilPct = totalDmn > 0 ? Math.round((totalBp / totalDmn) * 100) : 0;
+        const machineTypes = Array.from(
+          new Set(machines.map((m) => m.jenisMesin).filter(Boolean))
+        ).join(', ');
+        const coords =
+          unit.latitude != null && unit.longitude != null
+            ? `${Number(unit.latitude).toFixed(4)}, ${Number(unit.longitude).toFixed(4)}`
+            : '-';
+
+        return [
+          idx + 1,
+          unit.namaUnitLayananPusatListrik || '-',
+          (unit as any).alamatLengkap || unit.alamat || '-',
+          coords,
+          machines.length,
+          machineTypes || '-',
+          totalDmn.toLocaleString('id-ID'),
+          totalBp.toLocaleString('id-ID'),
+          `${utilPct}%`,
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 55,
+        head: [
+          [
+            'No',
+            'Unit Layanan',
+            'Alamat Operasional',
+            'Koordinat',
+            'Mesin',
+            'Jenis',
+            'Total DMN (kW)',
+            'Beban Puncak (kW)',
+            'Utilisasi',
+          ],
+        ],
+        body: unitTableBody,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2.5, textColor: [30, 41, 59] },
+        headStyles: { fillColor: [0, 114, 188], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 251, 253] },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 10 },
+          4: { halign: 'center', cellWidth: 14 },
+          6: { halign: 'right' },
+          7: { halign: 'right' },
+          8: { halign: 'center', cellWidth: 18 },
+        },
+      });
+
+      // Table 2: Rincian Mesin Pembangkit
+      const lastTableY = (doc as any).lastAutoTable?.finalY || 100;
+      let machineStartY = lastTableY + 12;
+      if (machineStartY > 165) {
+        doc.addPage();
+        machineStartY = 18;
+      }
+
+      doc.setFontSize(10.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(23, 59, 101);
+      doc.text('2. Rincian Aset Mesin Pembangkit per Unit', 14, machineStartY);
+
+      const machineBody: (string | number)[][] = [];
+      let mIdx = 0;
+      units.forEach((unit) => {
+        (unit.mesin || []).forEach((m) => {
+          mIdx += 1;
+          const dmn = Number(m.dayaMampuNominal) || 0;
+          const bp = Number(m.bebanPuncak) || 0;
+          const util = dmn > 0 ? Math.round((bp / dmn) * 100) : 0;
+          machineBody.push([
+            mIdx,
+            unit.namaUnitLayananPusatListrik || '-',
+            m.namaMesin || '-',
+            m.typeMesin || '-',
+            m.nomorSeri || '-',
+            m.jenisMesin || '-',
+            m.sistem || '-',
+            dmn.toLocaleString('id-ID'),
+            bp.toLocaleString('id-ID'),
+            `${util}%`,
+          ]);
+        });
+      });
+
+      if (machineBody.length > 0) {
+        autoTable(doc, {
+          startY: machineStartY + 3,
+          head: [
+            [
+              'No',
+              'Unit Layanan',
+              'Nama Mesin',
+              'Tipe',
+              'Nomor Seri',
+              'Jenis',
+              'Sistem Kelistrikan',
+              'DMN (kW)',
+              'BP (kW)',
+              'Utilisasi',
+            ],
+          ],
+          body: machineBody,
+          theme: 'grid',
+          styles: { fontSize: 7.5, cellPadding: 2.2, textColor: [30, 41, 59] },
+          headStyles: { fillColor: [23, 59, 101], textColor: 255, fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [248, 251, 253] },
+          columnStyles: {
+            0: { halign: 'center', cellWidth: 10 },
+            5: { halign: 'center', cellWidth: 15 },
+            7: { halign: 'right' },
+            8: { halign: 'right' },
+            9: { halign: 'center', cellWidth: 16 },
+          },
+        });
+      }
+
+      // Page numbers & footer
+      const pageCount = doc.getNumberOfPages();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      for (let i = 1; i <= pageCount; i += 1) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100, 116, 139);
+        doc.text(
+          'SIMAP PT PLN Nusantara Power UP Kapuas · Dokumen Laporan Operasional',
+          14,
+          pageHeight - 8
+        );
+        doc.text(`Halaman ${i} dari ${pageCount}`, pageWidth - 14, pageHeight - 8, {
+          align: 'right',
+        });
+      }
+
+      doc.save(`Laporan_Unit_Pembangkit_UP_Kapuas_${todaySlug}.pdf`);
+      setExportNotice('Laporan PDF data unit & mesin berhasil diunduh.');
+      setTimeout(() => setExportNotice(null), 4000);
+    } finally {
+      setExportingFormat(null);
+    }
+  };
 
   const onSubmit = async (data: any) => {
     setIsLoading(true);
@@ -242,56 +588,95 @@ const UnitManagement: React.FC = () => {
         icon={Building2}
         badge={`${unitStats.totalUnits} Unit · ${unitStats.totalMachines} Mesin`}
         actions={
-          <button
-            type="button"
-            onClick={() => {
-              if (isAdding) {
-                setIsAdding(false);
-                setEditingUnitId(null);
-                setPhotoPreview(null);
-                reset();
-              } else {
-                setEditingUnitId(null);
-                setPhotoPreview(null);
-                reset({
-                  namaUnitLayananPusatListrik: '',
-                  alamatLengkap: '',
-                  latitude: -1.7161,
-                  longitude: 109.5891,
-                  mesin: [
-                    {
-                      namaMesin: '',
-                      typeMesin: '',
-                      nomorSeri: '',
-                      dayaMampuNominal: 0,
-                      bebanPuncak: 0,
-                      jenisMesin: 'PLTD',
-                      sistem: 'Sistem Khatulistiwa',
-                    },
-                  ],
-                });
-                setIsAdding(true);
-              }
-            }}
-            className={cn(
-              'inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors shadow-xs',
-              isAdding
-                ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
-                : 'bg-[#0072BC] text-white hover:bg-[#173B65]'
-            )}
-          >
-            {isAdding ? (
-              <>
-                <X size={15} /> Batal
-              </>
-            ) : (
-              <>
-                <Plus size={15} /> Tambah Unit
-              </>
-            )}
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={loading || units.length === 0 || exportingFormat !== null}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors disabled:opacity-50"
+              title="Export data unit dan mesin ke Excel (.xlsx)"
+            >
+              {exportingFormat === 'excel' ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <FileSpreadsheet size={15} />
+              )}
+              <span>Export Excel</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportPDF}
+              disabled={loading || units.length === 0 || exportingFormat !== null}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#EAF6FC] dark:bg-[#0072BC]/20 border border-[#72C8F1]/40 dark:border-[#72C8F1]/30 text-[#173B65] dark:text-[#72C8F1] text-xs font-bold hover:bg-[#72C8F1]/25 transition-colors disabled:opacity-50"
+              title="Export laporan operasional unit dan mesin ke PDF"
+            >
+              {exportingFormat === 'pdf' ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <FileText size={15} />
+              )}
+              <span>Export PDF</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (isAdding) {
+                  setIsAdding(false);
+                  setEditingUnitId(null);
+                  setPhotoPreview(null);
+                  reset();
+                } else {
+                  setEditingUnitId(null);
+                  setPhotoPreview(null);
+                  reset({
+                    namaUnitLayananPusatListrik: '',
+                    alamatLengkap: '',
+                    latitude: -1.7161,
+                    longitude: 109.5891,
+                    mesin: [
+                      {
+                        namaMesin: '',
+                        typeMesin: '',
+                        nomorSeri: '',
+                        dayaMampuNominal: 0,
+                        bebanPuncak: 0,
+                        jenisMesin: 'PLTD',
+                        sistem: 'Sistem Khatulistiwa',
+                      },
+                    ],
+                  });
+                  setIsAdding(true);
+                }
+              }}
+              className={cn(
+                'inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors shadow-xs',
+                isAdding
+                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
+                  : 'bg-[#0072BC] text-white hover:bg-[#173B65]'
+              )}
+            >
+              {isAdding ? (
+                <>
+                  <X size={15} /> Batal
+                </>
+              ) : (
+                <>
+                  <Plus size={15} /> Tambah Unit
+                </>
+              )}
+            </button>
+          </div>
         }
       />
+
+      {exportNotice && (
+        <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 flex items-center gap-2.5 text-xs font-bold">
+          <CheckCircle2 size={16} className="shrink-0" />
+          <span>{exportNotice}</span>
+        </div>
+      )}
 
       {/* Infographic Summary Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

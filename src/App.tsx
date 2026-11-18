@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Login from './components/auth/Login';
@@ -12,7 +12,7 @@ import { useEmployees } from './hooks/useEmployees';
 import { useUnits } from './hooks/useUnits';
 import { auth } from './lib/firebase';
 import { signOut } from 'firebase/auth';
-import { Loader2, Bell, Settings, Menu, Search, LogOut, ShieldCheck } from 'lucide-react';
+import { Loader2, Bell, BellRing, Settings, Menu, Search, LogOut, ShieldCheck } from 'lucide-react';
 import { Employee } from './types';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -22,12 +22,14 @@ import OrgStructure from './components/dashboard/OrgStructure';
 import ActivityLog from './components/dashboard/ActivityLog';
 import SettingsView from './components/dashboard/SettingsView';
 import CertificationList from './components/employee/CertificationList';
+import SppdManagement from './components/sppd/SppdManagement';
 import LandingPage from './components/public/LandingPage';
 import PublicEmployeeVerify from './components/public/PublicEmployeeVerify';
 import EmployeeDashboard from './components/employee/EmployeeDashboard';
 import ThemeToggle from './components/common/ThemeToggle';
 import { useActivityLogs } from './hooks/useActivityLogs';
 import { syncPublicStats } from './lib/publicStats';
+import { extractEvaluatedCertifications } from './lib/certificationStatus';
 import { formatDistanceToNow } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 
@@ -36,6 +38,7 @@ const TAB_TITLES: Record<string, string> = {
   analytics: 'Laporan & Analitik',
   employees: 'Data Pegawai',
   'add-employee': 'Input Pegawai Baru',
+  sppd: 'Pengajuan SPPD',
   certifications: 'Data Sertifikasi',
   'org-structure': 'Struktur Organisasi',
   units: 'Data Pembangkit',
@@ -44,7 +47,7 @@ const TAB_TITLES: Record<string, string> = {
 };
 
 const MainApp: React.FC = () => {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading, biometricEnrollmentActive } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showLogin, setShowLogin] = useState(false);
   const [verifyEmployeeId, setVerifyEmployeeId] = useState<string | null>(() => {
@@ -59,12 +62,28 @@ const MainApp: React.FC = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [hasViewedNotifications, setHasViewedNotifications] = useState(false);
+  const [mapsQuotaExceeded, setMapsQuotaExceeded] = useState(false);
+
+  useEffect(() => {
+    const onQuotaExceeded = () => setMapsQuotaExceeded(true);
+    window.addEventListener('gmp-quota-exceeded', onQuotaExceeded);
+    return () => window.removeEventListener('gmp-quota-exceeded', onQuotaExceeded);
+  }, []);
 
   const isDashboardUser = !!user && !!profile && profile.role !== 'employee';
   const { employees, stats, loading: employeesLoading, updateEmployee, deleteEmployee } = useEmployees(isDashboardUser);
   const { units } = useUnits();
   const { logs: recentLogs } = useActivityLogs(isDashboardUser, 6);
-  const unreadCount = hasViewedNotifications ? 0 : Math.min(recentLogs.length, 5);
+  const expiringCerts30Days = useMemo(
+    () =>
+      isDashboardUser
+        ? extractEvaluatedCertifications(employees).filter((c) => c.statusType === 'warning')
+        : [],
+    [isDashboardUser, employees]
+  );
+  const unreadCount = hasViewedNotifications
+    ? 0
+    : Math.min(recentLogs.length + expiringCerts30Days.length, 9);
 
   const activeSelectedEmployee = selectedEmployee
     ? employees.find((e) => e.id === selectedEmployee.id) || selectedEmployee
@@ -117,12 +136,32 @@ const MainApp: React.FC = () => {
     setVerifyEmployeeId(null);
   };
 
+  const quotaBanner = mapsQuotaExceeded ? (
+    <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-xs md:text-sm text-center sticky top-0 z-50 shadow-sm">
+      <span>
+        Google Maps Platform quota reached. If you are the app owner, visit{' '}
+        <a
+          href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline font-semibold text-amber-950 hover:text-amber-800"
+        >
+          maps developer site
+        </a>{' '}
+        for instructions to update your account.
+      </span>
+    </div>
+  ) : null;
+
   if (verifyEmployeeId) {
     return (
-      <PublicEmployeeVerify
-        employeeId={verifyEmployeeId}
-        onBackHome={closePublicVerification}
-      />
+      <>
+        {quotaBanner}
+        <PublicEmployeeVerify
+          employeeId={verifyEmployeeId}
+          onBackHome={closePublicVerification}
+        />
+      </>
     );
   }
 
@@ -136,19 +175,32 @@ const MainApp: React.FC = () => {
 
   if (!user && !showLogin) {
     return (
-      <LandingPage
-        onStart={() => setShowLogin(true)}
-        onVerifyEmployee={openPublicVerification}
-      />
+      <>
+        {quotaBanner}
+        <LandingPage
+          onStart={() => setShowLogin(true)}
+          onVerifyEmployee={openPublicVerification}
+        />
+      </>
     );
   }
 
-  if (!user && showLogin) {
-    return <Login onBack={() => setShowLogin(false)} />;
+  if ((!user || biometricEnrollmentActive) && showLogin) {
+    return (
+      <>
+        {quotaBanner}
+        <Login onBack={() => setShowLogin(false)} />
+      </>
+    );
   }
 
   if (profile?.role === 'employee') {
-    return <EmployeeDashboard />;
+    return (
+      <>
+        {quotaBanner}
+        <EmployeeDashboard />
+      </>
+    );
   }
 
   const handleLogout = () => {
@@ -225,6 +277,13 @@ const MainApp: React.FC = () => {
         return <SettingsView />;
       case 'certifications':
         return <CertificationList />;
+      case 'sppd':
+        return (
+          <SppdManagement
+            employees={employees}
+            canApprove={profile?.role === 'admin' || profile?.role === 'super_admin'}
+          />
+        );
       default:
         return (
           <Overview
@@ -245,7 +304,9 @@ const MainApp: React.FC = () => {
     : TAB_TITLES[activeTab] || activeTab.replace('-', ' ');
 
   return (
-    <div className="flex bg-[#F4F8FB] dark:bg-[#071120] min-h-screen font-sans overflow-x-hidden transition-colors duration-200">
+    <div className="min-h-screen bg-[#F4F8FB] dark:bg-[#071120] transition-colors duration-200">
+      {quotaBanner}
+      <div className="flex min-h-screen font-sans overflow-x-hidden">
       <Sidebar
         activeTab={activeTab}
         setActiveTab={(tab) => {
@@ -259,6 +320,7 @@ const MainApp: React.FC = () => {
         setIsCollapsed={setIsSidebarCollapsed}
         mobileOpen={mobileMenuOpen}
         setMobileOpen={setMobileMenuOpen}
+        expiringCertCount={expiringCerts30Days.length}
       />
 
       <main className="flex-1 min-w-0 flex flex-col min-h-screen">
@@ -317,7 +379,13 @@ const MainApp: React.FC = () => {
                 >
                   <Bell size={18} />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#F9D423] text-[#173B65] text-[10px] flex items-center justify-center rounded-full font-extrabold shadow-xs">
+                    <span
+                      className={
+                        expiringCerts30Days.length > 0
+                          ? 'absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white text-[10px] flex items-center justify-center rounded-full font-extrabold shadow-xs'
+                          : 'absolute -top-1 -right-1 w-4 h-4 bg-[#F9D423] text-[#173B65] text-[10px] flex items-center justify-center rounded-full font-extrabold shadow-xs'
+                      }
+                    >
                       {unreadCount}
                     </span>
                   )}
@@ -349,6 +417,33 @@ const MainApp: React.FC = () => {
                         </button>
                       </div>
                       <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                        {expiringCerts30Days.length > 0 && (
+                          <div
+                            onClick={() => {
+                              setShowNotifications(false);
+                              setSelectedEmployee(null);
+                              setEditingEmployee(null);
+                              setActiveTab('certifications');
+                            }}
+                            className="p-3.5 bg-red-50/75 dark:bg-red-950/35 hover:bg-red-50 dark:hover:bg-red-950/55 transition-colors cursor-pointer border-l-4 border-l-red-500"
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold text-red-700 dark:text-red-300">
+                                <BellRing size={13} />
+                                Pengingat Sertifikasi (≤ 30 Hari)
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-extrabold leading-none">
+                                {expiringCerts30Days.length}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-red-700/85 dark:text-red-300/85 leading-relaxed line-clamp-2">
+                              {expiringCerts30Days[0].namaSertifikasi} ({expiringCerts30Days[0].employeeName})
+                              {expiringCerts30Days.length > 1
+                                ? ` dan ${expiringCerts30Days.length - 1} sertifikat lainnya akan kedaluwarsa.`
+                                : ' akan kedaluwarsa dalam 30 hari ke depan.'}
+                            </p>
+                          </div>
+                        )}
                         {recentLogs.length > 0 ? (
                           recentLogs.map((log) => {
                             const dt = log.createdAt?.toDate
@@ -500,6 +595,7 @@ const MainApp: React.FC = () => {
           setSelectedEmployee(emp);
         }}
       />
+      </div>
     </div>
   );
 };

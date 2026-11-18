@@ -13,6 +13,15 @@ async function startServer() {
   // JSON parsing middleware
   app.use(express.json());
 
+  // Explicitly allow WebAuthn platform authenticators in same-origin contexts
+  app.use((req, res, next) => {
+    res.setHeader(
+      "Permissions-Policy",
+      "publickey-credentials-get=(self), publickey-credentials-create=(self)"
+    );
+    next();
+  });
+
   // API placeholder for future proxying if needed
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", time: new Date().toISOString() });

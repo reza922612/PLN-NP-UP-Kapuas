@@ -8,6 +8,8 @@ export interface ServiceUnitProfile {
   role: string;
   matchKeywords: string[];
   focusAreas: string[];
+  mapShareUrl?: string;
+  mapSearchQueries?: string[];
 }
 
 export interface KnowledgeArticle {
@@ -56,10 +58,16 @@ export const SERVICE_UNIT_PROFILES: ServiceUnitProfile[] = [
       'Pengelolaan sertifikasi kompetensi operator pembangkit',
       'Pelaporan beban puncak terintegrasi Sistem Khatulistiwa',
     ],
+    mapShareUrl: 'https://share.google/TywDM3n0XN8bx57Qb',
+    mapSearchQueries: [
+      'ULPLTD Sei Raya Kubu Raya Kalimantan Barat',
+      'PLN Nusantara Power ULPLTD Sei Raya Sungai Raya',
+      'PLTD Sungai Raya Adi Sucipto Kubu Raya',
+    ],
   },
   {
     id: 'siantan',
-    name: 'ULPLTD Siantan',
+    name: 'ULPLTG/D Siantan',
     shortName: 'Siantan',
     region: 'Pontianak Utara, Kalimantan Barat',
     system: 'Sistem Khatulistiwa',
@@ -103,22 +111,6 @@ export const SERVICE_UNIT_PROFILES: ServiceUnitProfile[] = [
       'Sinkronisasi data mesin multi-lokasi Sanggau dan Sintang',
       'Pelacakan dokumen dan identitas digital pegawai lintas unit',
       'Evaluasi kinerja keandalan pembangkit wilayah timur',
-    ],
-  },
-  {
-    id: 'sei-wie',
-    name: 'ULPLTD Sei Wie',
-    shortName: 'Sei Wie',
-    region: 'Kota Singkawang, Kalimantan Barat',
-    system: 'Sistem Khatulistiwa Barat',
-    summary:
-      'Unit layanan pusat listrik di wilayah pesisir utara Singkawang yang memperkuat keandalan pasokan ujung barat Sistem Khatulistiwa.',
-    role: 'Mendukung keandalan sistem distribusi dan kestabilan tegangan bagi Kota Singkawang serta kawasan sekitarnya.',
-    matchKeywords: ['sei wie', 'singkawang'],
-    focusAreas: [
-      'Pengawasan kondisi aset mesin pembangkit pesisir utara',
-      'Pemutakhiran profil pegawai organik dan mitra kerja',
-      'Integrasi pelaporan operasional ke Command Center UP Kapuas',
     ],
   },
 ];
@@ -201,7 +193,7 @@ export const NEWS_ITEMS: NewsItem[] = [
       'Penyempurnaan antarmuka SIMAP menghadirkan pencarian global terpadu, pustaka pengetahuan operasional, serta ringkasan statistik aktual langsung dari basis data.',
     content: [
       'PT PLN Nusantara Power Unit Pembangkitan Kapuas terus memperkuat tata kelola operasional dan sumber daya manusia berbasis data melalui pembaruan platform SIMAP.',
-      'Antarmuka baru mengintegrasikan akses cepat modul kepegawaian, pemetaan profil lima unit layanan utama (Sei Raya, Siantan, Ketapang, Sanggau & Sintang, serta Sei Wie), dan pustaka pedoman kerja dalam satu portal terpusat.',
+      'Antarmuka baru mengintegrasikan akses cepat modul kepegawaian, pemetaan profil empat unit layanan utama (ULPLTD Sei Raya, ULPLTG/D Siantan, ULPLTD Ketapang, serta ULPLTD Sanggau & Sintang), dan pustaka pedoman kerja dalam satu portal terpusat.',
       'Seluruh metrik kepegawaian dan kapasitas pembangkit yang tampil pada infografis bersumber langsung dari rekaman aktual di database tanpa angka simulasi.',
     ],
   },
@@ -228,7 +220,7 @@ export const NEWS_ITEMS: NewsItem[] = [
     excerpt:
       'Agenda evaluasi kelengkapan sertifikat kompetensi ketenagalistrikan dan kesiapan data personel menjelang periode pelaporan akhir tahun.',
     content: [
-      'Setiap penanggung jawab SDM di ULPLTD Sei Raya, Siantan, Ketapang, Sanggau & Sintang, dan Sei Wie dijadwalkan melakukan peninjauan ulang masa berlaku sertifikasi pada menu Data Sertifikasi.',
+      'Setiap penanggung jawab SDM di ULPLTD Sei Raya, ULPLTG/D Siantan, ULPLTD Ketapang, serta ULPLTD Sanggau & Sintang dijadwalkan melakukan peninjauan ulang masa berlaku sertifikasi pada menu Data Sertifikasi.',
       'Gunakan fitur ekspor CSV pada daftar pegawai untuk mempermudah rekonsiliasi laporan internal unit.',
       'Pegawai juga dapat masuk melalui Portal Pegawai Mandiri untuk memeriksa data pribadi dan riwayat pelatihan masing-masing.',
     ],

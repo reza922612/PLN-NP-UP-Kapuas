@@ -13,7 +13,9 @@ import {
   LayoutDashboard,
   ShieldCheck,
   AlertCircle,
-  Loader2
+  Loader2,
+  Fingerprint,
+  Plane
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
@@ -21,12 +23,14 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import PlnNpLogo from '../common/PlnNpLogo';
 import ThemeToggle from '../common/ThemeToggle';
+import BiometricSettingsCard from '../common/BiometricSettingsCard';
+import SppdManagement from '../sppd/SppdManagement';
 
 const EmployeeDashboard: React.FC = () => {
   const { profile } = useAuth();
   const [employeeData, setEmployeeData] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'edit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'biometric' | 'sppd'>('overview');
 
   useEffect(() => {
     const fetchEmployee = async () => {
@@ -154,6 +158,19 @@ const EmployeeDashboard: React.FC = () => {
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab('sppd')}
+              className={cn(
+                'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all',
+                activeTab === 'sppd'
+                  ? 'bg-[#0072BC] text-white shadow-sm'
+                  : 'bg-white dark:bg-[#0E1A2E] text-slate-500 dark:text-slate-300 hover:text-[#173B65] border border-slate-200/80 dark:border-slate-800'
+              )}
+            >
+              <Plane size={18} />
+              Pengajuan SPPD
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab('edit')}
               className={cn(
                 'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all',
@@ -164,6 +181,19 @@ const EmployeeDashboard: React.FC = () => {
             >
               <Settings size={18} />
               Edit Informasi Kontak
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('biometric')}
+              className={cn(
+                'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all',
+                activeTab === 'biometric'
+                  ? 'bg-[#0072BC] text-white shadow-sm'
+                  : 'bg-white dark:bg-[#0E1A2E] text-slate-500 dark:text-slate-300 hover:text-[#173B65] border border-slate-200/80 dark:border-slate-800'
+              )}
+            >
+              <Fingerprint size={18} />
+              Keamanan Biometrik
             </button>
 
             <div className="corporate-card p-4 space-y-2.5">
@@ -178,6 +208,10 @@ const EmployeeDashboard: React.FC = () => {
           <main className="flex-1 min-w-0">
             {activeTab === 'overview' ? (
               <EmployeeDetail employee={employeeData} onBack={() => {}} />
+            ) : activeTab === 'sppd' ? (
+              <SppdManagement defaultEmployee={employeeData} canApprove={false} compactTitle />
+            ) : activeTab === 'biometric' ? (
+              <BiometricSettingsCard />
             ) : (
               <EmployeeForm
                 initialData={employeeData}

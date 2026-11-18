@@ -15,16 +15,32 @@ import {
   Cpu,
   Eye,
   EyeOff,
+  Fingerprint,
   Loader2,
   Lock,
   Mail,
+  ScanFace,
   ShieldCheck,
+  Trash2,
   UserPlus,
   Zap,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { signOut } from 'firebase/auth';
 import PlnNpLogo from '../common/PlnNpLogo';
 import ThemeToggle from '../common/ThemeToggle';
+import { useAuth } from '../../context/AuthContext';
+import {
+  authenticateWithBiometric,
+  BiometricCapabilities,
+  getBiometricCapabilities,
+  listLocalBiometricCredentials,
+  LocalBiometricCredential,
+  registerBiometricCredential,
+  removeLocalBiometricCredential,
+  touchBiometricLastUsed,
+  translateWebAuthnError,
+} from '../../lib/biometricAuth';
 
 const LOGIN_ILLUSTRATION = '/src/assets/images/login_powerplant_digital_1794932962355.jpg';
 const REMEMBER_EMAIL_KEY = 'simap_remembered_email';
@@ -34,6 +50,7 @@ interface LoginProps {
 }
 
 const Login: React.FC<LoginProps> = ({ onBack }) => {
+  const { setBiometricEnrollmentActive } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState(() => {
     try {
@@ -52,10 +69,39 @@ const Login: React.FC<LoginProps> = ({ onBack }) => {
     }
   });
   const [loading, setLoading] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
+  const [enrollingBiometric, setEnrollingBiometric] = useState(false);
+  const [enrollBiometricOnLogin, setEnrollBiometricOnLogin] = useState(false);
+  const [bioCapabilities, setBioCapabilities] = useState<BiometricCapabilities | null>(null);
+  const [localBiometrics, setLocalBiometrics] = useState<LocalBiometricCredential[]>([]);
+  const [selectedBioCredId, setSelectedBioCredId] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [resetSent, setResetSent] = useState(false);
   const [illustrationFailed, setIllustrationFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const initBiometrics = async () => {
+      const [caps, creds] = await Promise.all([
+        getBiometricCapabilities(),
+        listLocalBiometricCredentials(),
+      ]);
+      if (!active) return;
+      setBioCapabilities(caps);
+      setLocalBiometrics(creds);
+      if (creds.length > 0) {
+        const remembered = creds.find(
+          (c) => email.trim() && c.email.toLowerCase() === email.trim().toLowerCase()
+        );
+        setSelectedBioCredId((remembered || creds[0]).credDocId);
+      }
+    };
+    initBiometrics();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!rememberMe) {
@@ -74,6 +120,15 @@ const Login: React.FC<LoginProps> = ({ onBack }) => {
     setSuccessMessage(null);
     setResetSent(false);
 
+    const isMobileViewport =
+      typeof window !== 'undefined' ? window.innerWidth < 1024 : false;
+    const shouldEnrollBiometric =
+      isLogin && isMobileViewport && enrollBiometricOnLogin && Boolean(bioCapabilities?.supported);
+
+    if (shouldEnrollBiometric) {
+      setBiometricEnrollmentActive(true);
+    }
+
     try {
       await setPersistence(
         auth,
@@ -89,8 +144,29 @@ const Login: React.FC<LoginProps> = ({ onBack }) => {
       }
 
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
-        setSuccessMessage('Login berhasil. Memuat dashboard SIMAP UP Kapuas...');
+        const userCred = await signInWithEmailAndPassword(auth, email.trim(), password);
+
+        if (shouldEnrollBiometric) {
+          setEnrollingBiometric(true);
+          setSuccessMessage(
+            'Login berhasil. Pindai Sidik Jari / Face ID perangkat untuk mengaktifkan Biometric Login...'
+          );
+          try {
+            await registerBiometricCredential({
+              uid: userCred.user.uid,
+              email: userCred.user.email || email.trim(),
+              displayName: userCred.user.displayName || email.trim(),
+              secret: password,
+            });
+            setSuccessMessage('Login & Biometric Login aktif. Memuat dashboard SIMAP...');
+          } catch (bioErr) {
+            console.warn('Biometric enrollment skipped:', bioErr);
+          } finally {
+            setEnrollingBiometric(false);
+          }
+        } else {
+          setSuccessMessage('Login berhasil. Memuat dashboard SIMAP UP Kapuas...');
+        }
       } else {
         await createUserWithEmailAndPassword(auth, email.trim(), password);
         setSuccessMessage('Akun berhasil dibuat. Mengarahkan ke portal SIMAP...');
@@ -117,8 +193,68 @@ const Login: React.FC<LoginProps> = ({ onBack }) => {
       }
       console.error('Firebase Auth Error:', err.code, err.message);
     } finally {
+      if (shouldEnrollBiometric) {
+        setBiometricEnrollmentActive(false);
+      }
       setLoading(false);
     }
+  };
+
+  const handleBiometricLogin = async () => {
+    setError(null);
+    setSuccessMessage(null);
+    setResetSent(false);
+    setBiometricLoading(true);
+
+    try {
+      const unlocked = await authenticateWithBiometric(selectedBioCredId || undefined);
+
+      await setPersistence(auth, browserLocalPersistence);
+      try {
+        localStorage.setItem(REMEMBER_EMAIL_KEY, unlocked.email);
+      } catch {
+        // ignore storage errors
+      }
+
+      const userCred = await signInWithEmailAndPassword(auth, unlocked.email, unlocked.secret);
+      const stillValid = await touchBiometricLastUsed(userCred.user.uid, unlocked.credDocId);
+
+      if (!stillValid) {
+        await signOut(auth);
+        const remaining = await listLocalBiometricCredentials();
+        setLocalBiometrics(remaining);
+        setSelectedBioCredId(remaining[0]?.credDocId || '');
+        setError(
+          'Akses biometrik perangkat ini telah dicabut. Silakan masuk menggunakan password.'
+        );
+        return;
+      }
+
+      setSuccessMessage('Verifikasi biometrik berhasil! Membuka dashboard pegawai...');
+    } catch (err: any) {
+      if (err?.code === 'auth/wrong-password' || err?.code === 'auth/invalid-credential') {
+        if (selectedBioCredId) {
+          await removeLocalBiometricCredential(selectedBioCredId);
+          const remaining = await listLocalBiometricCredentials();
+          setLocalBiometrics(remaining);
+          setSelectedBioCredId(remaining[0]?.credDocId || '');
+        }
+        setError(
+          'Password akun Anda telah berubah. Silakan masuk sekali dengan password baru untuk memperbarui kunci biometrik.'
+        );
+      } else {
+        setError(translateWebAuthnError(err));
+      }
+    } finally {
+      setBiometricLoading(false);
+    }
+  };
+
+  const handleForgetLocalBiometric = async (credDocId: string) => {
+    await removeLocalBiometricCredential(credDocId);
+    const remaining = await listLocalBiometricCredentials();
+    setLocalBiometrics(remaining);
+    setSelectedBioCredId(remaining[0]?.credDocId || '');
   };
 
   const handleForgotPassword = async () => {
@@ -192,7 +328,7 @@ const Login: React.FC<LoginProps> = ({ onBack }) => {
                   <Cpu size={14} className="text-[#F7E82E]" />
                   Digital Energy Infrastructure
                 </span>
-                <span>5 Unit Layanan</span>
+                <span>4 Unit Layanan</span>
               </div>
             </div>
           </motion.div>
@@ -348,8 +484,8 @@ const Login: React.FC<LoginProps> = ({ onBack }) => {
               </div>
             </div>
 
-            {/* Remember Me */}
-            <div className="flex items-center justify-between pt-0.5">
+            {/* Remember Me & Mobile Biometric Enrollment Toggle */}
+            <div className="space-y-2.5 pt-0.5">
               <label className="inline-flex items-center gap-2.5 cursor-pointer select-none group">
                 <input
                   type="checkbox"
@@ -358,9 +494,24 @@ const Login: React.FC<LoginProps> = ({ onBack }) => {
                   className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-pln-blue focus:ring-pln-blue dark:bg-slate-800 cursor-pointer"
                 />
                 <span className="text-xs font-medium text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">
-                  Remember Me (Simpan sesi & email)
+                  Remember Me (Simpan sesi &amp; email)
                 </span>
               </label>
+
+              {/* Mobile View Only: Opt-in to bind WebAuthn fingerprint/Face ID on login */}
+              {isLogin && bioCapabilities?.supported && (
+                <label className="lg:hidden flex items-start gap-2.5 cursor-pointer select-none group p-2.5 rounded-xl bg-[#EAF6FC]/70 dark:bg-[#0072BC]/15 border border-[#72C8F1]/35 dark:border-slate-700/80">
+                  <input
+                    type="checkbox"
+                    checked={enrollBiometricOnLogin}
+                    onChange={(e) => setEnrollBiometricOnLogin(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 rounded border-slate-300 dark:border-slate-600 text-pln-blue focus:ring-pln-blue dark:bg-slate-800 cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-[#173B65] dark:text-slate-200 leading-snug">
+                    Aktifkan Login Biometrik (Sidik Jari / Face ID) di perangkat mobile ini
+                  </span>
+                </label>
+              )}
             </div>
 
             {/* Status / Error Notifications */}
@@ -409,7 +560,7 @@ const Login: React.FC<LoginProps> = ({ onBack }) => {
             {/* Primary LOGIN Button with Blue & PLN Yellow Accent */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || biometricLoading || enrollingBiometric}
               className="relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-[#005DAA] via-[#0078D4] to-[#00AEEF] text-white font-bold py-3.5 px-6 shadow-lg shadow-blue-900/20 hover:shadow-xl hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 disabled:opacity-60 group"
             >
               {/* Subtle PLN Yellow accent stripe at bottom edge */}
@@ -417,10 +568,12 @@ const Login: React.FC<LoginProps> = ({ onBack }) => {
                 aria-hidden="true"
                 className="absolute inset-x-0 bottom-0 h-1 bg-[#F7E82E] opacity-90 group-hover:opacity-100 transition-opacity"
               />
-              {loading ? (
+              {loading || enrollingBiometric ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
-                  <span className="text-xs uppercase tracking-widest">Memproses...</span>
+                  <span className="text-xs uppercase tracking-widest">
+                    {enrollingBiometric ? 'Memindai Biometrik...' : 'Memproses...'}
+                  </span>
                 </>
               ) : (
                 <>
@@ -436,6 +589,91 @@ const Login: React.FC<LoginProps> = ({ onBack }) => {
               )}
             </button>
           </form>
+
+          {/* Mobile View Only: Biometric Quick Login (WebAuthn Platform Authenticator) */}
+          {isLogin && (
+            <div className="lg:hidden mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 space-y-3.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-[#EAF6FC] dark:bg-[#0072BC]/25 text-[#0072BC] dark:text-[#72C8F1] flex items-center justify-center">
+                    <Fingerprint size={15} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-extrabold text-[#173B65] dark:text-slate-100 leading-none">
+                      Biometric Login
+                    </p>
+                    <p className="text-[10px] font-medium text-slate-400 mt-0.5">
+                      Sidik Jari / Face ID Mobile
+                    </p>
+                  </div>
+                </div>
+                {localBiometrics.length > 0 && (
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                    Siap Digunakan
+                  </span>
+                )}
+              </div>
+
+              {localBiometrics.length > 0 ? (
+                <div className="space-y-2.5">
+                  {localBiometrics.length > 1 ? (
+                    <select
+                      value={selectedBioCredId}
+                      onChange={(e) => setSelectedBioCredId(e.target.value)}
+                      aria-label="Pilih akun biometrik tersimpan"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-bold text-[#173B65] dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#0072BC]"
+                    >
+                      {localBiometrics.map((cred) => (
+                        <option key={cred.credDocId} value={cred.credDocId}>
+                          {cred.email}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-[#F4F8FB] dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/80">
+                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 truncate">
+                        {localBiometrics[0].email}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleForgetLocalBiometric(localBiometrics[0].credDocId)}
+                        title="Hapus akun biometrik dari perangkat ini"
+                        className="p-1 text-slate-400 hover:text-red-500 transition-colors shrink-0"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleBiometricLogin}
+                    disabled={biometricLoading || loading}
+                    className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#173B65] to-[#0072BC] hover:brightness-110 active:scale-[0.99] text-white font-bold text-xs uppercase tracking-wider shadow-md shadow-[#0072BC]/15 transition-all flex items-center justify-center gap-2.5 disabled:opacity-60"
+                  >
+                    {biometricLoading ? (
+                      <>
+                        <Loader2 size={17} className="animate-spin text-[#F9D423]" />
+                        <span>Memindai Sidik Jari / Wajah...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Fingerprint size={18} className="text-[#F9D423]" />
+                        <span>Masuk dengan Biometrik</span>
+                        <ScanFace size={16} className="text-[#72C8F1]" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  {bioCapabilities && !bioCapabilities.supported
+                    ? 'Akses login biometrik memerlukan browser mobile dengan dukungan WebAuthn (HTTPS).'
+                    : 'Centang "Aktifkan Login Biometrik" di atas saat Anda masuk dengan password, atau aktifkan melalui menu Keamanan Biometrik di Portal Pegawai.'}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Toggle Login / Sign Up */}
           <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 text-center space-y-3">

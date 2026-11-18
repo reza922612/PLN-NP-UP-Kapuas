@@ -122,7 +122,7 @@
       "type": "object",
       "properties": {
         "action": { "type": "string", "enum": ["CREATE", "UPDATE", "DELETE"] },
-        "entityType": { "type": "string", "enum": ["employee", "unit", "system"] },
+        "entityType": { "type": "string", "enum": ["employee", "unit", "system", "sppd"] },
         "entityId": { "type": "string", "maxLength": 128 },
         "entityName": { "type": "string", "maxLength": 256 },
         "description": { "type": "string", "maxLength": 512 },
@@ -173,12 +173,134 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["statId", "totalEmployees", "organicCount", "taskForceCount", "subcontractCount", "totalUnits", "totalMachines", "totalCapacityKW", "totalPeakLoadKW", "updatedAt"]
+    },
+    "BiometricCredential": {
+      "title": "BiometricCredential",
+      "description": "WebAuthn platform authenticator metadata registered per user device",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 256 },
+        "credentialId": { "type": "string", "maxLength": 512 },
+        "deviceName": { "type": "string", "maxLength": 128 },
+        "rpId": { "type": "string", "maxLength": 256 },
+        "authenticatorType": { "type": "string", "enum": ["platform"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastUsedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "email", "credentialId", "deviceName", "rpId", "authenticatorType", "createdAt", "lastUsedAt"]
+    },
+    "SppdRequest": {
+      "title": "SppdRequest",
+      "description": "Digital Surat Perjalanan Dinas (SPPD) submission and approval workflow record",
+      "type": "object",
+      "properties": {
+        "requestNumber": { "type": "string", "maxLength": 64 },
+        "applicantUid": { "type": "string", "maxLength": 128 },
+        "applicantEmail": { "type": "string", "format": "email", "maxLength": 256 },
+        "employeeId": { "type": "string", "maxLength": 128 },
+        "namaPegawai": { "type": "string", "maxLength": 256 },
+        "nip": { "type": "string", "maxLength": 64 },
+        "jabatan": { "type": "string", "maxLength": 256 },
+        "bidang": {
+          "type": "string",
+          "enum": [
+            "Manager UP",
+            "Bidang Operasi",
+            "Bidang Operasi - Rendal Operasi dan Niaga",
+            "Bidang Operasi - Bahan Bakar",
+            "Bidang Pemeliharaan",
+            "Bidang Pemeliharaan - Rendal Pemeliharaan",
+            "Bidang Pemeliharaan - Management Outage",
+            "Bidang Pemeliharaan - Inventory Control dan Gudang",
+            "Bidang Engineering",
+            "Bidang Engineering - System Owner",
+            "Bidang Engineering - Manajemen Mutu, Risiko dan Kepatuhan",
+            "Bidang Engineering - Condition Based Maintenance",
+            "Bidang Business Support",
+            "Bidang Business Support - Keuangan dan Akuntansi",
+            "Bidang Business Support - SDM, Umum dan CSR",
+            "Bidang Business Support - Pengadaan",
+            "Bidang K3 dan Keamanan",
+            "Bidang Lingkungan",
+            "Manager UL",
+            "Bidang Operasi UL",
+            "Bidang Pemeliharaan UL",
+            "Bidang K3, Lingkungan dan Keamanan UL",
+            "Bidang Operasi dan Pemeliharaan UL"
+          ]
+        },
+        "unitKerja": {
+          "type": "string",
+          "enum": [
+            "UP Kapuas",
+            "ULPLTD Sei Raya",
+            "ULPLTG/D Siantan",
+            "ULPLTD Sanggau dan Sintang",
+            "ULPLTD Ketapang"
+          ]
+        },
+        "jenisSppd": { "type": "string", "enum": ["SPPD Diklat", "SPPD Non Diklat"] },
+        "judulPerjalanan": { "type": "string", "maxLength": 300 },
+        "tanggalKeberangkatan": { "type": "string", "format": "date", "maxLength": 32 },
+        "tanggalKembali": { "type": "string", "format": "date", "maxLength": 32 },
+        "nomorPrk": { "type": "string", "maxLength": 128 },
+        "nomorCoa": { "type": "string", "maxLength": 128 },
+        "jenisTransportasi": {
+          "type": "string",
+          "enum": [
+            "Pesawat (Angkutan Udara)",
+            "Bus / Taksi (Angkutan Darat)",
+            "Kendaraan Dinas"
+          ]
+        },
+        "kotaKeberangkatan": { "type": "string", "maxLength": 128 },
+        "kotaTujuan": { "type": "string", "maxLength": 128 },
+        "dokumenPendukung": { "type": "array" },
+        "status": {
+          "type": "string",
+          "enum": ["Draft", "Submitted", "Menunggu Approval", "Approved", "Rejected", "Completed"]
+        },
+        "approvalNotes": { "type": "string", "maxLength": 512 },
+        "approvedByName": { "type": "string", "maxLength": 256 },
+        "approvedByUid": { "type": "string", "maxLength": 128 },
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "requestNumber",
+        "applicantUid",
+        "applicantEmail",
+        "namaPegawai",
+        "nip",
+        "jabatan",
+        "bidang",
+        "unitKerja",
+        "jenisSppd",
+        "judulPerjalanan",
+        "tanggalKeberangkatan",
+        "tanggalKembali",
+        "nomorPrk",
+        "nomorCoa",
+        "jenisTransportasi",
+        "kotaKeberangkatan",
+        "kotaTujuan",
+        "dokumenPendukung",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
     "users": {
       "schema": "User",
       "description": "System users and their roles"
+    },
+    "users/{userId}/biometric_credentials/{credDocId}": {
+      "schema": "BiometricCredential",
+      "description": "WebAuthn biometric credentials registered for mobile quick login"
     },
     "employees": {
       "schema": "Employee",
@@ -211,6 +333,10 @@
     "public_stats": {
       "schema": "PublicStats",
       "description": "Public non-PII aggregated statistics for the command center landing page"
+    },
+    "sppd_requests/{sppdId}": {
+      "schema": "SppdRequest",
+      "description": "SPPD travel requests and approval workflow records"
     }
   }
 }

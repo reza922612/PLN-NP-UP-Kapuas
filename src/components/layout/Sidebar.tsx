@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   History,
+  Plane,
   X,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -26,6 +27,7 @@ interface SidebarProps {
   setIsCollapsed: (collapsed: boolean) => void;
   mobileOpen?: boolean;
   setMobileOpen?: (open: boolean) => void;
+  expiringCertCount?: number;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -37,6 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   setIsCollapsed,
   mobileOpen = false,
   setMobileOpen,
+  expiringCertCount = 0,
 }) => {
   const menuGroups = [
     {
@@ -51,6 +54,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { id: 'employees', label: 'Data Pegawai', icon: Users },
         { id: 'add-employee', label: 'Input Pegawai', icon: UserPlus, hidden: role === 'viewer' },
+        { id: 'sppd', label: 'Pengajuan SPPD', icon: Plane },
         { id: 'certifications', label: 'Data Sertifikasi', icon: Award },
         { id: 'org-structure', label: 'Struktur Organisasi', icon: ShieldCheck },
       ],
@@ -169,7 +173,22 @@ const Sidebar: React.FC<SidebarProps> = ({
                           : 'text-[#72C8F1]/75 group-hover:text-white'
                       )}
                     />
-                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    {!collapsed && <span className="truncate flex-1 text-left">{item.label}</span>}
+                    {item.id === 'certifications' && expiringCertCount > 0 && (
+                      collapsed ? (
+                        <span
+                          className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[#0E1A2E]"
+                          title={`${expiringCertCount} sertifikat kedaluwarsa ≤ 30 hari`}
+                        />
+                      ) : (
+                        <span
+                          className="ml-auto px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-extrabold leading-none shadow-xs"
+                          title={`${expiringCertCount} sertifikat akan kedaluwarsa dalam 30 hari`}
+                        >
+                          {expiringCertCount}
+                        </span>
+                      )
+                    )}
                   </button>
                 );
               })}

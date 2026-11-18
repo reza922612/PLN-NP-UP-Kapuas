@@ -22,6 +22,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { cn } from '../../lib/utils';
 import { ThemeMode, UserProfile, UserRole } from '../../types';
 import { PageHeader, SectionCard } from '../common/DashboardUI';
+import BiometricSettingsCard from '../common/BiometricSettingsCard';
 
 const ROLE_LABELS: Record<UserRole, { name: string; desc: string; color: string }> = {
   super_admin: {
@@ -348,6 +349,9 @@ const SettingsView: React.FC = () => {
           </div>
         </form>
       </SectionCard>
+
+      {/* Biometric Login & Device Security */}
+      <BiometricSettingsCard />
 
       {/* Role & Permission Matrix */}
       <SectionCard

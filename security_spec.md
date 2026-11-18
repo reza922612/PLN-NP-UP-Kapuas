@@ -22,6 +22,8 @@
 10. **Resource Exhaustion**: Sending a 1MB string as a `religion` field.
 11. **Cross-Tenant Access**: (Simplified for this app) - Accessing data without any role assignment.
 12. **System Field Tampering**: Overwriting `createdAt` timestamp with a past date.
+13. **Biometric Credential Hijacking**: Attempting to read, register, or delete `users/{otherUid}/biometric_credentials/{credDocId}` where `request.auth.uid != otherUid`, or injecting ghost fields / spoofing `userId` / modifying `credentialId` or `createdAt` on update.
+14. **SPPD Self-Approval / Cross-User Tampering**: Attempting to create an SPPD with status `'Approved'`, update another user's SPPD without admin role, or edit a submitted/approved SPPD as a non-admin applicant.
 
 ## Test Runner (Conceptual)
 Tests will verify that these payloads return `PERMISSION_DENIED`.

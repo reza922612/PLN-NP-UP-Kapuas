@@ -21,6 +21,8 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   updateUserProfile: (updates: EditableProfileFields) => Promise<void>;
+  biometricEnrollmentActive: boolean;
+  setBiometricEnrollmentActive: (active: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -28,6 +30,8 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   loading: true,
   updateUserProfile: async () => {},
+  biometricEnrollmentActive: false,
+  setBiometricEnrollmentActive: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -36,6 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [biometricEnrollmentActive, setBiometricEnrollmentActive] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -154,7 +159,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, updateUserProfile }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        profile,
+        loading,
+        updateUserProfile,
+        biometricEnrollmentActive,
+        setBiometricEnrollmentActive,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

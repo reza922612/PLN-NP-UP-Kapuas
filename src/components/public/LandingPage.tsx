@@ -32,6 +32,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import PlnNpLogo from '../common/PlnNpLogo';
 import ThemeToggle from '../common/ThemeToggle';
 import LandingInfographic from './LandingInfographic';
+import UnitLocationMap from './UnitLocationMap';
 import { usePublicStats } from '../../hooks/usePublicStats';
 import {
   COMMAND_NOTIFICATIONS,
@@ -587,7 +588,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
             <div className="pt-6 border-t border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
               <span className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
                 <MapPin size={14} className="text-pln-blue dark:text-cyan-400" />
-                Kalimantan Barat · 5 Unit Layanan Pembangkitan
+                Kalimantan Barat · 4 Unit Layanan Pembangkitan
               </span>
               <span aria-hidden="true" className="hidden sm:inline">
                 ·
@@ -634,7 +635,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
                       Cakupan Wilayah Operasi
                     </p>
                     <p className="text-sm sm:text-base font-bold leading-snug">
-                      Sei Raya · Siantan · Ketapang · Sanggau & Sintang · Sei Wie
+                      Sei Raya · Siantan · Ketapang · Sanggau & Sintang
                     </p>
                   </div>
                   <div className="flex items-center gap-5 shrink-0 text-left sm:text-right">
@@ -723,7 +724,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
         onLoginClick={onStart}
       />
 
-      {/* Service Unit Profiles: Sei Raya, Siantan, Ketapang, Sanggau & Sintang, Sei Wie */}
+      {/* Service Unit Profiles: Sei Raya, Siantan, Ketapang, Sanggau & Sintang */}
       <section id="unit-layanan" className="py-24 px-6">
         <div className="max-w-7xl mx-auto space-y-10">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -732,7 +733,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
                 Profil Unit Layanan
               </p>
               <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white text-balance">
-                Lima Gugus Unit Pembangkitan UP Kapuas
+                Empat Gugus Unit Pembangkitan UP Kapuas
               </h2>
             </div>
             <p className="text-sm text-slate-600 dark:text-slate-400 max-w-md">
@@ -869,6 +870,33 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
                       ))}
                     </ul>
                   </div>
+
+                  {selectedUnit.mapShareUrl && selectedUnit.mapSearchQueries && (
+                    <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                          <MapPin size={14} className="text-pln-blue dark:text-cyan-400" />
+                          Lokasi Google Maps · {selectedUnit.name}
+                        </h4>
+                        <a
+                          href={selectedUnit.mapShareUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-semibold text-pln-blue dark:text-cyan-400 hover:underline inline-flex items-center gap-1"
+                        >
+                          Tautan Resmi Google Maps
+                          <ExternalLink size={12} />
+                        </a>
+                      </div>
+                      <UnitLocationMap
+                        unitName={selectedUnit.name}
+                        region={selectedUnit.region}
+                        mapShareUrl={selectedUnit.mapShareUrl}
+                        searchQueries={selectedUnit.mapSearchQueries}
+                        addressHint={matchedSelectedUnitSummary?.address}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-4 pt-4">
@@ -1185,7 +1213,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
                 Cakupan Unit Layanan
               </h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                ULPLTD Sei Raya · ULPLTD Siantan · ULPLTD Ketapang · ULPLTD Sanggau & Sintang · ULPLTD Sei Wie
+                ULPLTD Sei Raya · ULPLTG/D Siantan · ULPLTD Ketapang · ULPLTD Sanggau & Sintang
               </p>
               <div className="pt-2">
                 <p className="text-xs font-bold text-white mb-3">Kanal Resmi</p>

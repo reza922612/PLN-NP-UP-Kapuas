@@ -19,6 +19,7 @@ import {
   BookOpen,
   ShieldCheck,
   Briefcase,
+  BellRing,
 } from 'lucide-react';
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -27,6 +28,7 @@ import { logActivity } from '../../lib/activityLogger';
 import { useAuth } from '../../context/AuthContext';
 import { syncPublicVerification } from '../../lib/publicVerification';
 import { formatDate, calculateAge, calculateTenure, cn } from '../../lib/utils';
+import { evaluateCertificationStatus } from '../../lib/certificationStatus';
 import { SectionCard } from '../common/DashboardUI';
 import DocumentScannerModal from './DocumentScannerModal';
 
@@ -513,32 +515,54 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
                     </h4>
                     {employee.certifications && employee.certifications.length > 0 ? (
                       <div className="space-y-2.5">
-                        {employee.certifications.map((c, i) => (
-                          <div
-                            key={i}
-                            className="p-3.5 bg-[#F4F8FB] dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3"
-                          >
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold text-[#173B65] dark:text-slate-100 truncate">
-                                {c.namaSertifikasi}
-                              </p>
-                              <p className="text-[11px] text-slate-400 font-medium mt-0.5">
-                                Terbit: {formatDate(c.tanggalPelaksanaan)} · Berlaku: {formatDate(c.masaBerlaku)}
-                              </p>
+                        {employee.certifications.map((c, i) => {
+                          const { statusType, daysLeft } = evaluateCertificationStatus(c.masaBerlaku);
+                          const isExpiringSoon = statusType === 'warning';
+                          return (
+                            <div
+                              key={i}
+                              className={
+                                isExpiringSoon
+                                  ? 'p-3.5 bg-red-50/70 dark:bg-red-950/30 rounded-xl border border-red-300 dark:border-red-800/80 border-l-4 border-l-red-500 flex items-center justify-between gap-3'
+                                  : 'p-3.5 bg-[#F4F8FB] dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3'
+                              }
+                            >
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-xs font-bold text-[#173B65] dark:text-slate-100 truncate">
+                                    {c.namaSertifikasi}
+                                  </p>
+                                  {isExpiringSoon && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-600 text-white text-[10px] font-extrabold shrink-0">
+                                      <BellRing size={10} />
+                                      {daysLeft === 0 ? 'Berakhir Hari Ini' : `H-${daysLeft} ≤ 30 Hari`}
+                                    </span>
+                                  )}
+                                </div>
+                                <p
+                                  className={
+                                    isExpiringSoon
+                                      ? 'text-[11px] text-red-600 dark:text-red-400 font-semibold mt-0.5'
+                                      : 'text-[11px] text-slate-400 font-medium mt-0.5'
+                                  }
+                                >
+                                  Terbit: {formatDate(c.tanggalPelaksanaan)} · Berlaku: {formatDate(c.masaBerlaku)}
+                                </p>
+                              </div>
+                              {c.certificateUrl && (
+                                <a
+                                  href={c.certificateUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="p-2 rounded-lg bg-white dark:bg-[#0E1A2E] border border-slate-200 dark:border-slate-700 text-[#0072BC] dark:text-[#72C8F1] hover:bg-[#0072BC] hover:text-white transition-colors shrink-0"
+                                  title="Lihat Sertifikat"
+                                >
+                                  <FileText size={14} />
+                                </a>
+                              )}
                             </div>
-                            {c.certificateUrl && (
-                              <a
-                                href={c.certificateUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-2 rounded-lg bg-white dark:bg-[#0E1A2E] border border-slate-200 dark:border-slate-700 text-[#0072BC] dark:text-[#72C8F1] hover:bg-[#0072BC] hover:text-white transition-colors shrink-0"
-                                title="Lihat Sertifikat"
-                              >
-                                <FileText size={14} />
-                              </a>
-                            )}
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="text-xs text-slate-400 italic py-4">

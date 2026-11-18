@@ -1,5 +1,5 @@
 import React from 'react';
-import { LucideIcon, AlertTriangle, Loader2 } from 'lucide-react';
+import { LucideIcon, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '../../lib/utils';
 
@@ -281,6 +281,7 @@ interface ConfirmDialogProps {
   description: React.ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
+  variant?: 'danger' | 'info';
   loading?: boolean;
   onConfirm: () => void | Promise<void>;
   onCancel: () => void;
@@ -292,29 +293,38 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   description,
   confirmLabel = 'Ya, Hapus',
   cancelLabel = 'Batal',
+  variant = 'danger',
   loading = false,
   onConfirm,
   onCancel,
 }) => {
   if (!open) return null;
+  const isInfo = variant === 'info';
   return (
     <div className="fixed inset-0 z-50 bg-[#071120]/65 backdrop-blur-xs flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white dark:bg-[#0E1A2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-sm w-full p-6 space-y-5"
+        className="bg-white dark:bg-[#0E1A2E] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-5"
       >
         <div className="flex items-start gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
-            <AlertTriangle size={20} />
+          <div
+            className={cn(
+              'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
+              isInfo
+                ? 'bg-[#EAF6FC] dark:bg-[#0072BC]/25 text-[#0072BC] dark:text-[#72C8F1]'
+                : 'bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400'
+            )}
+          >
+            {isInfo ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1.5 min-w-0 flex-1">
             <h4 className="text-sm font-extrabold text-[#173B65] dark:text-slate-100">
               {title}
             </h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            <div className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
               {description}
-            </p>
+            </div>
           </div>
         </div>
         <div className="flex items-center justify-end gap-2 pt-1">
@@ -330,7 +340,12 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             type="button"
             disabled={loading}
             onClick={onConfirm}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700 transition-colors disabled:opacity-50"
+            className={cn(
+              'inline-flex items-center gap-1.5 px-4 py-2 text-white rounded-xl text-xs font-bold transition-colors disabled:opacity-50',
+              isInfo
+                ? 'bg-[#0072BC] hover:bg-[#173B65]'
+                : 'bg-red-600 hover:bg-red-700'
+            )}
           >
             {loading && <Loader2 size={14} className="animate-spin" />}
             {confirmLabel}

@@ -30,7 +30,7 @@ import {
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
-import { parseISO, differenceInDays, isAfter } from 'date-fns';
+import { evaluateCertificationStatus } from '../../lib/certificationStatus';
 import { Employee } from '../../types';
 import { useUnits } from '../../hooks/useUnits';
 import {
@@ -172,20 +172,12 @@ const AnalyticsView: React.FC<AnalyticsViewProps> = ({ employees, loading }) => 
     const today = new Date();
     filteredEmployees.forEach((e) => {
       (e.certifications || []).forEach((c) => {
-        if (!c.masaBerlaku) {
-          active += 1;
-          return;
-        }
-        try {
-          const exp = parseISO(c.masaBerlaku);
-          if (!isAfter(exp, today)) {
-            expired += 1;
-          } else if (differenceInDays(exp, today) <= 30) {
-            warning += 1;
-          } else {
-            active += 1;
-          }
-        } catch {
+        const { statusType } = evaluateCertificationStatus(c.masaBerlaku, today);
+        if (statusType === 'expired') {
+          expired += 1;
+        } else if (statusType === 'warning') {
+          warning += 1;
+        } else {
           active += 1;
         }
       });
