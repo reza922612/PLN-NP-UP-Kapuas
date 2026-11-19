@@ -24,6 +24,7 @@
 12. **System Field Tampering**: Overwriting `createdAt` timestamp with a past date.
 13. **Biometric Credential Hijacking**: Attempting to read, register, or delete `users/{otherUid}/biometric_credentials/{credDocId}` where `request.auth.uid != otherUid`, or injecting ghost fields / spoofing `userId` / modifying `credentialId` or `createdAt` on update.
 14. **SPPD Self-Approval / Cross-User Tampering**: Attempting to create an SPPD with status `'Approved'`, update another user's SPPD without admin role, or edit a submitted/approved SPPD as a non-admin applicant.
+15. **Unauthorized Broadcast / Dismissal Spoofing**: Attempting to create/update/delete `broadcast_announcements` as a non-admin (`viewer`/`employee`), listing inactive broadcasts as a non-admin, or writing `users/{otherUid}/dismissed_broadcasts/{id}` across users.
 
 ## Test Runner (Conceptual)
 Tests will verify that these payloads return `PERMISSION_DENIED`.

@@ -30,6 +30,7 @@ const NAV_SHORTCUTS = [
   { id: 'certifications', label: 'Data Sertifikasi', desc: 'Pemantauan masa berlaku sertifikat' },
   { id: 'org-structure', label: 'Struktur Organisasi', desc: 'Hierarki jabatan dan profil personel' },
   { id: 'units', label: 'Data Pembangkit', desc: 'Unit layanan, mesin, dan pemetaan', superAdminOnly: true },
+  { id: 'broadcasts', label: 'Pengumuman Broadcast', desc: 'Kirim notifikasi toast ke seluruh akun pengguna', adminOnly: true },
   { id: 'activity-log', label: 'Activity Log', desc: 'Riwayat aktivitas administratif sistem' },
   { id: 'settings', label: 'Pengaturan', desc: 'Profil, tema tampilan, dan manajemen peran' },
 ];
@@ -57,6 +58,7 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
     return NAV_SHORTCUTS.filter((item) => {
       if (item.hideViewer && role === 'viewer') return false;
       if (item.superAdminOnly && role !== 'super_admin') return false;
+      if ((item as any).adminOnly && role !== 'admin' && role !== 'super_admin') return false;
       if (!q) return true;
       return item.label.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q);
     }).slice(0, 5);

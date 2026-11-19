@@ -291,6 +291,42 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "BroadcastAnnouncement": {
+      "title": "BroadcastAnnouncement",
+      "description": "Administrator in-app broadcast announcement displayed as a toast notification upon user login",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 140 },
+        "message": { "type": "string", "maxLength": 1000 },
+        "priority": { "type": "string", "enum": ["info", "important", "urgent"] },
+        "isActive": { "type": "boolean" },
+        "senderUid": { "type": "string", "maxLength": 128 },
+        "senderName": { "type": "string", "maxLength": 256 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "title",
+        "message",
+        "priority",
+        "isActive",
+        "senderUid",
+        "senderName",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DismissedBroadcast": {
+      "title": "DismissedBroadcast",
+      "description": "Per-user dismissal receipt for an active broadcast announcement toast",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "announcementId": { "type": "string", "maxLength": 128 },
+        "dismissedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "announcementId", "dismissedAt"]
     }
   },
   "firestore": {
@@ -301,6 +337,14 @@
     "users/{userId}/biometric_credentials/{credDocId}": {
       "schema": "BiometricCredential",
       "description": "WebAuthn biometric credentials registered for mobile quick login"
+    },
+    "users/{userId}/dismissed_broadcasts/{announcementId}": {
+      "schema": "DismissedBroadcast",
+      "description": "Tracks broadcast announcements dismissed by a user"
+    },
+    "broadcast_announcements/{announcementId}": {
+      "schema": "BroadcastAnnouncement",
+      "description": "In-app broadcast announcements sent by administrators to all registered users"
     },
     "employees": {
       "schema": "Employee",

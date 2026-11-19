@@ -23,6 +23,8 @@ import ActivityLog from './components/dashboard/ActivityLog';
 import SettingsView from './components/dashboard/SettingsView';
 import CertificationList from './components/employee/CertificationList';
 import SppdManagement from './components/sppd/SppdManagement';
+import BroadcastManagement from './components/dashboard/BroadcastManagement';
+import BroadcastToastContainer from './components/common/BroadcastToastContainer';
 import LandingPage from './components/public/LandingPage';
 import PublicEmployeeVerify from './components/public/PublicEmployeeVerify';
 import EmployeeDashboard from './components/employee/EmployeeDashboard';
@@ -42,6 +44,7 @@ const TAB_TITLES: Record<string, string> = {
   certifications: 'Data Sertifikasi',
   'org-structure': 'Struktur Organisasi',
   units: 'Data Pembangkit',
+  broadcasts: 'Pengumuman Broadcast',
   'activity-log': 'Activity Log',
   settings: 'Pengaturan Sistem',
 };
@@ -203,6 +206,7 @@ const MainApp: React.FC = () => {
       <>
         {quotaBanner}
         <EmployeeDashboard />
+        <BroadcastToastContainer enabled={!!user && !!profile && !biometricEnrollmentActive} />
       </>
     );
   }
@@ -273,6 +277,8 @@ const MainApp: React.FC = () => {
         );
       case 'units':
         return <UnitManagement />;
+      case 'broadcasts':
+        return <BroadcastManagement />;
       case 'org-structure':
         return <OrgStructure onSelectEmployee={(emp) => setSelectedEmployee(emp)} />;
       case 'activity-log':
@@ -606,6 +612,7 @@ const MainApp: React.FC = () => {
           setSelectedEmployee(emp);
         }}
       />
+      <BroadcastToastContainer enabled={!!user && !!profile && !biometricEnrollmentActive} />
     </div>
   );
 };

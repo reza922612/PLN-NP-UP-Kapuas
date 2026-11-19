@@ -245,4 +245,18 @@ export interface SppdRequest {
   updatedAt: any;
 }
 
+export type BroadcastPriority = 'info' | 'important' | 'urgent';
+
+export interface BroadcastAnnouncement {
+  id?: string;
+  title: string;
+  message: string;
+  priority: BroadcastPriority;
+  isActive: boolean;
+  senderUid: string;
+  senderName: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
 

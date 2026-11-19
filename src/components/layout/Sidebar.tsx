@@ -13,6 +13,7 @@ import {
   ChevronRight,
   History,
   Plane,
+  Megaphone,
   X,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -63,6 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       group: 'Aset & Sistem',
       items: [
         { id: 'units', label: 'Data Pembangkit', icon: Building2, hidden: role !== 'super_admin' },
+        { id: 'broadcasts', label: 'Pengumuman Broadcast', icon: Megaphone, hidden: role !== 'admin' && role !== 'super_admin' },
         { id: 'activity-log', label: 'Activity Log', icon: History },
         { id: 'settings', label: 'Pengaturan', icon: Settings },
       ],

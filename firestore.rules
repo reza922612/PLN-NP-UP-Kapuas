@@ -65,6 +65,14 @@ service cloud.firestore {
              data.lastUsedAt is timestamp;
     }
 
+    function isValidDismissedBroadcast(data, userId, announcementId) {
+      return data.keys().hasAll(['userId', 'announcementId', 'dismissedAt']) &&
+             data.keys().hasOnly(['userId', 'announcementId', 'dismissedAt']) &&
+             data.userId == userId &&
+             data.announcementId == announcementId &&
+             data.dismissedAt is timestamp;
+    }
+
     match /users/{userId} {
       allow get: if isValidId(userId) && isSignedIn() && (request.auth.uid == userId || isAdmin());
       // Users can see their own role to bootstrap UI
@@ -105,6 +113,18 @@ service cloud.firestore {
                       incoming().diff(existing()).affectedKeys().hasOnly(['lastUsedAt']) &&
                       incoming().lastUsedAt == request.time;
         allow delete: if isValidId(userId) && isValidId(credDocId) && isSignedIn() && request.auth.uid == userId;
+      }
+
+      // Dismissed Broadcast Toast Receipts (Owner-only)
+      match /dismissed_broadcasts/{announcementId} {
+        allow get: if isValidId(userId) && isValidId(announcementId) && isSignedIn() && request.auth.uid == userId;
+        allow list: if isValidId(userId) && isSignedIn() && request.auth.uid == userId;
+        allow create, update: if isValidId(userId) && isValidId(announcementId) && isSignedIn() &&
+                              request.auth.uid == userId &&
+                              exists(/databases/$(database)/documents/users/$(userId)) &&
+                              isValidDismissedBroadcast(incoming(), userId, announcementId) &&
+                              incoming().dismissedAt == request.time;
+        allow delete: if isValidId(userId) && isValidId(announcementId) && isSignedIn() && request.auth.uid == userId;
       }
     }
 
@@ -338,6 +358,37 @@ service cloud.firestore {
                       hasRole('super_admin') ||
                       (isSignedIn() && existing().applicantUid == request.auth.uid && existing().status == 'Draft')
                     );
+    }
+
+    // 8. In-App Broadcast Announcements Collection
+    function isValidBroadcastAnnouncement(data) {
+      return data.keys().hasAll(['title', 'message', 'priority', 'isActive', 'senderUid', 'senderName', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['title', 'message', 'priority', 'isActive', 'senderUid', 'senderName', 'createdAt', 'updatedAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 140 &&
+             data.message is string && data.message.size() > 0 && data.message.size() <= 1000 &&
+             data.priority in ['info', 'important', 'urgent'] &&
+             data.isActive is bool &&
+             data.senderUid is string && data.senderUid.size() > 0 && data.senderUid.size() <= 128 &&
+             data.senderName is string && data.senderName.size() > 0 && data.senderName.size() <= 256 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /broadcast_announcements/{announcementId} {
+      allow get: if isValidId(announcementId) && isSignedIn() && (existing().isActive == true || isAdmin());
+      allow list: if isSignedIn() && (resource.data.isActive == true || isAdmin());
+      allow create: if isValidId(announcementId) && isAdmin() &&
+                    isValidBroadcastAnnouncement(incoming()) &&
+                    incoming().senderUid == request.auth.uid &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time;
+      allow update: if isValidId(announcementId) && isAdmin() &&
+                    isValidBroadcastAnnouncement(incoming()) &&
+                    incoming().senderUid == existing().senderUid &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['title', 'message', 'priority', 'isActive', 'updatedAt']);
+      allow delete: if isValidId(announcementId) && isAdmin();
     }
   }
 }

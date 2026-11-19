@@ -1,10 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useEmployees } from '../../hooks/useEmployees';
 import { storage } from '../../lib/firebase';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, uploadBytesResumable, getDownloadURL, UploadTask } from 'firebase/storage';
 import { Employee } from '../../types';
 import {
   User,
@@ -108,6 +108,244 @@ const employeeSchema = z.object({
 
 type EmployeeFormValues = z.infer<typeof employeeSchema>;
 
+type FileUploadStatus = {
+  status: 'optimizing' | 'uploading' | 'done' | 'error' | 'cancelled';
+  progress: number;
+  url?: string;
+  error?: string;
+};
+
+type UploadCacheEntry = {
+  promise: Promise<string>;
+  task?: UploadTask;
+  cancelled: boolean;
+  status: FileUploadStatus['status'];
+  progress: number;
+  url?: string;
+};
+
+const UPLOAD_STALL_TIMEOUT_MS = 20000;
+const COMPRESSION_TIMEOUT_MS = 2500;
+const SMALL_FILE_FAST_UPLOAD_BYTES = 512 * 1024;
+
+const withTimeout = <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+};
+
+const optimizeImageFast = async (file: File, isPhoto: boolean): Promise<File> => {
+  if (!file.type.startsWith('image/') || file.size > 15 * 1024 * 1024) {
+    return file;
+  }
+
+  const minThreshold = isPhoto ? 250 * 1024 : 600 * 1024;
+  if (file.size <= minThreshold) {
+    return file;
+  }
+
+  try {
+    const compressed = await withTimeout(
+      imageCompression(file, {
+        maxSizeMB: isPhoto ? 0.35 : 1.0,
+        maxWidthOrHeight: isPhoto ? 1024 : 1600,
+        useWebWorker: false,
+        initialQuality: isPhoto ? 0.78 : 0.8,
+      }),
+      COMPRESSION_TIMEOUT_MS,
+      'Image compression timeout'
+    );
+    return compressed.size < file.size ? compressed : file;
+  } catch {
+    return file;
+  }
+};
+
+interface InputFieldProps {
+  label: string;
+  name: any;
+  register: any;
+  type?: string;
+  error?: any;
+  options?: Array<{ label: string; value: string }>;
+  placeholder?: string;
+  disabled?: boolean;
+  helper?: string;
+}
+
+const InputField: React.FC<InputFieldProps> = ({
+  label,
+  name,
+  register,
+  type = 'text',
+  error,
+  options,
+  placeholder,
+  disabled,
+  helper,
+}) => (
+  <div className="flex flex-col gap-1.5">
+    <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-0.5">
+      {label}
+    </label>
+    {options ? (
+      <select
+        {...register(name)}
+        disabled={disabled}
+        className={cn(
+          'px-3.5 py-2.5 bg-[#F4F8FB] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-[#173B65] dark:text-slate-100 focus:ring-2 focus:ring-[#0072BC] focus:bg-white dark:focus:bg-[#0E1A2E] outline-none transition-all font-semibold disabled:opacity-60',
+          error && 'border-red-400 focus:ring-red-400'
+        )}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value} className="dark:bg-slate-900">
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    ) : (
+      <input
+        type={type}
+        {...register(name)}
+        placeholder={placeholder}
+        disabled={disabled}
+        className={cn(
+          'px-3.5 py-2.5 bg-[#F4F8FB] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-[#173B65] dark:text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-[#0072BC] focus:bg-white dark:focus:bg-[#0E1A2E] outline-none transition-all font-semibold disabled:opacity-60',
+          error && 'border-red-400 focus:ring-red-400'
+        )}
+      />
+    )}
+    {helper && !error && <span className="text-[10px] text-slate-400 font-medium px-0.5">{helper}</span>}
+    {error && (
+      <span className="text-[11px] text-red-500 dark:text-red-400 font-semibold px-0.5">
+        {error.message}
+      </span>
+    )}
+  </div>
+);
+
+interface FileUploadFieldProps {
+  label: string;
+  name: any;
+  register: any;
+  watch: any;
+  uploadPath: string;
+  uploadLabel: string;
+  fileUploads: Map<File, FileUploadStatus>;
+  onFileSelected: (file: File, path: string, label: string) => void;
+  error?: any;
+  accept: string;
+  icon: React.ComponentType<{ className?: string }>;
+  helper?: string;
+}
+
+const FileUploadField: React.FC<FileUploadFieldProps> = ({
+  label,
+  name,
+  register,
+  watch,
+  uploadPath,
+  uploadLabel,
+  fileUploads,
+  onFileSelected,
+  error,
+  accept,
+  icon: Icon,
+  helper,
+}) => {
+  const currentValue = watch(name);
+  const selectedFile =
+    currentValue && typeof currentValue === 'object' && currentValue[0] instanceof File
+      ? (currentValue[0] as File)
+      : null;
+
+  const uploadStatus = selectedFile ? fileUploads.get(selectedFile) : undefined;
+  const registered = register(name);
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-0.5">
+        {label}
+      </label>
+      <div className="relative">
+        <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0072BC] dark:text-[#72C8F1]" />
+        <input
+          type="file"
+          accept={accept}
+          {...registered}
+          onChange={(e) => {
+            registered.onChange(e);
+            const file = e.target.files?.[0];
+            if (file && file.size <= MAX_UPLOAD_SIZE_BYTES) {
+              onFileSelected(file, uploadPath, uploadLabel);
+            }
+          }}
+          className={cn(
+            'w-full pl-10 pr-3 py-2.5 bg-[#F4F8FB] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-[#0072BC] outline-none transition-all font-semibold text-slate-600 dark:text-slate-300 file:mr-3 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-[#EAF6FC] dark:file:bg-[#0072BC]/25 file:text-[#0072BC] dark:file:text-[#72C8F1] cursor-pointer',
+            error && 'border-red-400'
+          )}
+        />
+      </div>
+      {selectedFile && !error && (
+        <div className="space-y-1 px-0.5">
+          <div className="flex items-center justify-between gap-2 text-[10px]">
+            <span className="text-[#0072BC] dark:text-[#72C8F1] font-semibold truncate">
+              {selectedFile.name} ({formatFileSize(selectedFile.size)})
+            </span>
+            {uploadStatus?.status === 'done' && (
+              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
+                <CheckCircle2 size={11} />
+                Siap disimpan
+              </span>
+            )}
+            {(uploadStatus?.status === 'optimizing' || uploadStatus?.status === 'uploading') && (
+              <span className="inline-flex items-center gap-1 text-[#0072BC] dark:text-[#72C8F1] font-bold shrink-0">
+                <Loader2 size={11} className="animate-spin" />
+                {uploadStatus.status === 'optimizing'
+                  ? 'Mengoptimalkan...'
+                  : `${uploadStatus.progress}%`}
+              </span>
+            )}
+            {(uploadStatus?.status === 'error' || uploadStatus?.status === 'cancelled') && (
+              <button
+                type="button"
+                onClick={() => onFileSelected(selectedFile, uploadPath, uploadLabel)}
+                className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 font-bold hover:underline shrink-0"
+              >
+                <RotateCcw size={10} />
+                Coba Lagi
+              </button>
+            )}
+          </div>
+          {(uploadStatus?.status === 'optimizing' || uploadStatus?.status === 'uploading') && (
+            <div className="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#0072BC] dark:bg-[#72C8F1] transition-all duration-200"
+                style={{ width: `${Math.max(uploadStatus.progress, 6)}%` }}
+              />
+            </div>
+          )}
+          {uploadStatus?.status === 'error' && uploadStatus.error && (
+            <span className="block text-[10px] text-red-500 dark:text-red-400 font-semibold">
+              {uploadStatus.error}
+            </span>
+          )}
+        </div>
+      )}
+      {helper && !error && (
+        <span className="text-[10px] text-slate-400 font-medium px-0.5">{helper}</span>
+      )}
+      {error && (
+        <span className="text-[11px] text-red-500 dark:text-red-400 font-semibold px-0.5">
+          {error.message}
+        </span>
+      )}
+    </div>
+  );
+};
+
 interface EmployeeFormProps {
   initialData?: Employee | null;
   onSuccess?: () => void;
@@ -121,10 +359,15 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
   onCancel,
   isProfileEdit,
 }) => {
-  const { createEmployee, updateEmployee } = useEmployees();
+  const { createEmployee, updateEmployee } = useEmployees(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [isUploadingStep, setIsUploadingStep] = useState(false);
+  const [fileUploads, setFileUploads] = useState<Map<File, FileUploadStatus>>(() => new Map());
+
+  const uploadCacheRef = useRef<Map<File, UploadCacheEntry>>(new Map());
+  const isMountedRef = useRef(true);
 
   const isEditing = !!initialData?.id;
 
@@ -195,127 +438,339 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
     }
   }, [appointmentDateValue]);
 
-  const uploadFileWithProgress = async (
-    file: File,
-    path: string,
-    label: string
-  ): Promise<string> => {
-    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
-      throw new Error(
-        `Ukuran ${label} (${formatFileSize(file.size)}) melebihi batas maksimal ${MAX_UPLOAD_SIZE_MB} MB.`
-      );
-    }
-
-    let fileToUpload = file;
-    // Compress moderately sized images to keep uploads snappy while preserving large/high-res uploads up to 50 MB
-    if (
-      file.type.startsWith('image/') &&
-      file.size > 1.5 * 1024 * 1024 &&
-      file.size <= 15 * 1024 * 1024
-    ) {
-      try {
-        setUploadProgress(`Mengoptimalkan ${label}...`);
-        fileToUpload = await imageCompression(file, {
-          maxSizeMB: 2,
-          maxWidthOrHeight: 1920,
-          useWebWorker: true,
-          initialQuality: 0.85,
-        });
-      } catch (err) {
-        console.error('Compression failed, using original:', err);
-      }
-    }
-
-    const storageRef = ref(storage, `${path}/${Date.now()}_${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, fileToUpload);
-
-    return new Promise((resolve, reject) => {
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-          setUploadProgress(
-            `Mengunggah ${label} (${progress}% · ${formatFileSize(fileToUpload.size)})...`
-          );
-        },
-        (error) => reject(error),
-        async () => {
-          const url = await getDownloadURL(uploadTask.snapshot.ref);
-          resolve(url);
-        }
-      );
+  const updateFileUploadUI = useCallback((file: File, next: FileUploadStatus) => {
+    if (!isMountedRef.current) return;
+    setFileUploads((prev) => {
+      const copy = new Map(prev);
+      copy.set(file, next);
+      return copy;
     });
-  };
+  }, []);
+
+  const cancelAllActiveUploads = useCallback(() => {
+    uploadCacheRef.current.forEach((entry, file) => {
+      if (entry.status === 'optimizing' || entry.status === 'uploading') {
+        entry.cancelled = true;
+        entry.status = 'cancelled';
+        if (entry.task) {
+          try {
+            entry.task.cancel();
+          } catch {
+            // ignore cancellation errors on finished tasks
+          }
+        }
+        updateFileUploadUI(file, {
+          status: 'cancelled',
+          progress: entry.progress,
+        });
+      }
+    });
+  }, [updateFileUploadUI]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      uploadCacheRef.current.forEach((entry) => {
+        if (entry.status === 'optimizing' || entry.status === 'uploading') {
+          entry.cancelled = true;
+          try {
+            entry.task?.cancel();
+          } catch {
+            // ignore
+          }
+        }
+      });
+    };
+  }, []);
+
+  const startFileUpload = useCallback(
+    (file: File, path: string, label: string): Promise<string> => {
+      if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+        return Promise.reject(
+          new Error(
+            `Ukuran ${label} (${formatFileSize(file.size)}) melebihi batas maksimal ${MAX_UPLOAD_SIZE_MB} MB.`
+          )
+        );
+      }
+
+      const existing = uploadCacheRef.current.get(file);
+      if (
+        existing &&
+        !existing.cancelled &&
+        (existing.status === 'optimizing' ||
+          existing.status === 'uploading' ||
+          existing.status === 'done')
+      ) {
+        return existing.promise;
+      }
+
+      const entry: UploadCacheEntry = {
+        promise: Promise.resolve(''),
+        cancelled: false,
+        status: 'optimizing',
+        progress: 0,
+      };
+      uploadCacheRef.current.set(file, entry);
+
+      const promise = (async () => {
+        try {
+          updateFileUploadUI(file, { status: 'optimizing', progress: 0 });
+          const fileToUpload = await optimizeImageFast(file, path === 'photos');
+
+          if (entry.cancelled) {
+            throw new Error(`Unggahan ${label} dibatalkan.`);
+          }
+
+          const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+          const storageRef = ref(storage, `${path}/${uniqueSuffix}_${safeName}`);
+          const metadata = {
+            contentType: fileToUpload.type || undefined,
+            cacheControl: 'public,max-age=31536000',
+          };
+
+          entry.status = 'uploading';
+          updateFileUploadUI(file, { status: 'uploading', progress: 5 });
+
+          let downloadUrl = '';
+
+          // Single HTTP request fast path for small files <= 512 KB
+          if (fileToUpload.size <= SMALL_FILE_FAST_UPLOAD_BYTES) {
+            const snapshot = await withTimeout(
+              uploadBytes(storageRef, fileToUpload, metadata),
+              UPLOAD_STALL_TIMEOUT_MS,
+              `Waktu unggah ${label} habis. Periksa koneksi internet Anda.`
+            );
+            if (entry.cancelled) {
+              throw new Error(`Unggahan ${label} dibatalkan.`);
+            }
+            downloadUrl = await withTimeout(
+              getDownloadURL(snapshot.ref),
+              10000,
+              `Gagal mengambil tautan ${label}.`
+            );
+          } else {
+            downloadUrl = await new Promise<string>((resolve, reject) => {
+              const uploadTask = uploadBytesResumable(storageRef, fileToUpload, metadata);
+              entry.task = uploadTask;
+
+              let lastBytes = -1;
+              let lastProgressTick = 0;
+              let stallTimer: ReturnType<typeof setTimeout> | null = null;
+
+              const clearStallTimer = () => {
+                if (stallTimer) {
+                  clearTimeout(stallTimer);
+                  stallTimer = null;
+                }
+              };
+
+              const resetStallTimer = () => {
+                clearStallTimer();
+                stallTimer = setTimeout(() => {
+                  entry.cancelled = true;
+                  try {
+                    uploadTask.cancel();
+                  } catch {
+                    // ignore
+                  }
+                  reject(
+                    new Error(
+                      `Koneksi unggahan ${label} terhenti terlalu lama. Silakan periksa internet Anda dan coba lagi.`
+                    )
+                  );
+                }, UPLOAD_STALL_TIMEOUT_MS);
+              };
+
+              resetStallTimer();
+
+              uploadTask.on(
+                'state_changed',
+                (snapshot) => {
+                  if (snapshot.bytesTransferred > lastBytes) {
+                    lastBytes = snapshot.bytesTransferred;
+                    resetStallTimer();
+                  }
+                  const progress = snapshot.totalBytes
+                    ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)
+                    : 0;
+                  entry.progress = progress;
+
+                  const now = Date.now();
+                  if (progress === 100 || now - lastProgressTick >= 150) {
+                    lastProgressTick = now;
+                    updateFileUploadUI(file, { status: 'uploading', progress });
+                  }
+                },
+                (error) => {
+                  clearStallTimer();
+                  if ((error as { code?: string })?.code === 'storage/canceled' || entry.cancelled) {
+                    reject(new Error(`Unggahan ${label} dibatalkan.`));
+                    return;
+                  }
+                  reject(error);
+                },
+                async () => {
+                  clearStallTimer();
+                  try {
+                    const url = await withTimeout(
+                      getDownloadURL(uploadTask.snapshot.ref),
+                      10000,
+                      `Gagal mengambil tautan ${label}.`
+                    );
+                    resolve(url);
+                  } catch (err) {
+                    reject(err);
+                  }
+                }
+              );
+            });
+          }
+
+          entry.status = 'done';
+          entry.progress = 100;
+          entry.url = downloadUrl;
+          updateFileUploadUI(file, { status: 'done', progress: 100, url: downloadUrl });
+          return downloadUrl;
+        } catch (err) {
+          const message =
+            err instanceof Error
+              ? err.message
+              : `Gagal mengunggah ${label}. Periksa koneksi internet Anda.`;
+          if (!entry.cancelled) {
+            entry.status = 'error';
+            updateFileUploadUI(file, { status: 'error', progress: entry.progress, error: message });
+          }
+          throw err;
+        }
+      })();
+
+      entry.promise = promise;
+      return promise;
+    },
+    [updateFileUploadUI]
+  );
+
+  const handleReset = useCallback(() => {
+    cancelAllActiveUploads();
+    uploadCacheRef.current.clear();
+    setFileUploads(new Map());
+    setFormError(null);
+    reset();
+  }, [cancelAllActiveUploads, reset]);
 
   const onSubmit = async (data: EmployeeFormValues) => {
     setFormError(null);
     try {
-      let photoUrl = '';
-      let dossierUrl = '';
+      type PendingUpload = {
+        file: File;
+        path: string;
+        label: string;
+        assign: (url: string) => void;
+      };
+
+      const pendingUploads: PendingUpload[] = [];
+
+      let resolvedPhotoUrl =
+        typeof data.photoUrl?.[0] === 'string' ? (data.photoUrl[0] as string) : '';
+      let resolvedDossierUrl =
+        typeof data.dossierUrl?.[0] === 'string' ? (data.dossierUrl[0] as string) : '';
 
       if (data.photoUrl && data.photoUrl[0] instanceof File) {
-        photoUrl = await uploadFileWithProgress(data.photoUrl[0], 'photos', 'Foto Pegawai');
+        pendingUploads.push({
+          file: data.photoUrl[0],
+          path: 'photos',
+          label: 'Foto Pegawai',
+          assign: (url) => {
+            resolvedPhotoUrl = url;
+          },
+        });
       }
 
       if (data.dossierUrl && data.dossierUrl[0] instanceof File) {
-        dossierUrl = await uploadFileWithProgress(data.dossierUrl[0], 'dossiers', 'Berkas Dossier');
+        pendingUploads.push({
+          file: data.dossierUrl[0],
+          path: 'dossiers',
+          label: 'Berkas Dossier',
+          assign: (url) => {
+            resolvedDossierUrl = url;
+          },
+        });
       }
 
-      const trainingsWithUrls = [];
-      if (data.trainings) {
-        for (let i = 0; i < data.trainings.length; i++) {
-          const t = data.trainings[i];
-          if (t.certificateUrl && t.certificateUrl[0] instanceof File) {
-            const url = await uploadFileWithProgress(
-              t.certificateUrl[0],
-              'certificates/trainings',
-              `Sertifikat Pelatihan ${i + 1}`
-            );
-            trainingsWithUrls.push({ ...t, certificateUrl: url });
-          } else {
-            trainingsWithUrls.push({ ...t, certificateUrl: '' });
-          }
+      const resolvedTrainings = (data.trainings || []).map((t, index) => {
+        const existingUrl =
+          typeof t.certificateUrl?.[0] === 'string' ? (t.certificateUrl[0] as string) : '';
+        const nextTraining = { ...t, certificateUrl: existingUrl };
+        if (t.certificateUrl && t.certificateUrl[0] instanceof File) {
+          pendingUploads.push({
+            file: t.certificateUrl[0],
+            path: 'certificates/trainings',
+            label: `Sertifikat Pelatihan ${index + 1}`,
+            assign: (url) => {
+              nextTraining.certificateUrl = url;
+            },
+          });
         }
-      }
+        return nextTraining;
+      });
 
-      const certsWithUrls = [];
-      if (data.certifications) {
-        for (let i = 0; i < data.certifications.length; i++) {
-          const c = data.certifications[i];
-          if (c.certificateUrl && c.certificateUrl[0] instanceof File) {
-            const url = await uploadFileWithProgress(
-              c.certificateUrl[0],
-              'certificates/certs',
-              `Sertifikat ${i + 1}`
-            );
-            certsWithUrls.push({ ...c, certificateUrl: url });
-          } else {
-            certsWithUrls.push({ ...c, certificateUrl: '' });
-          }
+      const resolvedCerts = (data.certifications || []).map((c, index) => {
+        const existingUrl =
+          typeof c.certificateUrl?.[0] === 'string' ? (c.certificateUrl[0] as string) : '';
+        const nextCert = { ...c, certificateUrl: existingUrl };
+        if (c.certificateUrl && c.certificateUrl[0] instanceof File) {
+          pendingUploads.push({
+            file: c.certificateUrl[0],
+            path: 'certificates/certs',
+            label: `Sertifikat ${index + 1}`,
+            assign: (url) => {
+              nextCert.certificateUrl = url;
+            },
+          });
         }
+        return nextCert;
+      });
+
+      const incompleteCount = pendingUploads.filter((item) => {
+        const cached = uploadCacheRef.current.get(item.file);
+        return !cached || cached.status !== 'done';
+      }).length;
+
+      if (incompleteCount > 0) {
+        setIsUploadingStep(true);
+        setUploadProgress(
+          `Mengunggah ${incompleteCount} berkas secara paralel...`
+        );
+      } else {
+        setIsUploadingStep(false);
+        setUploadProgress('Menyimpan data pegawai...');
       }
 
+      if (pendingUploads.length > 0) {
+        await Promise.all(
+          pendingUploads.map(async (item) => {
+            const url = await startFileUpload(item.file, item.path, item.label);
+            item.assign(url);
+          })
+        );
+      }
+
+      setIsUploadingStep(false);
       setUploadProgress('Menyimpan data pegawai...');
 
       const payload = {
         ...data,
-        photoUrl: photoUrl || (typeof data.photoUrl?.[0] === 'string' ? data.photoUrl[0] : null),
-        dossierUrl: dossierUrl || (typeof data.dossierUrl?.[0] === 'string' ? data.dossierUrl[0] : null),
-        trainings: trainingsWithUrls.map((t, idx) => ({
+        photoUrl: resolvedPhotoUrl || null,
+        dossierUrl: resolvedDossierUrl || null,
+        trainings: resolvedTrainings.map((t) => ({
           ...t,
-          certificateUrl:
-            t.certificateUrl ||
-            (typeof data.trainings?.[idx]?.certificateUrl?.[0] === 'string'
-              ? data.trainings[idx].certificateUrl[0]
-              : null),
+          certificateUrl: t.certificateUrl || null,
         })),
-        certifications: certsWithUrls.map((c, idx) => ({
+        certifications: resolvedCerts.map((c) => ({
           ...c,
-          certificateUrl:
-            c.certificateUrl ||
-            (typeof data.certifications?.[idx]?.certificateUrl?.[0] === 'string'
-              ? data.certifications[idx].certificateUrl[0]
-              : null),
+          certificateUrl: c.certificateUrl || null,
         })),
       };
 
@@ -325,6 +780,8 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
         await createEmployee(payload as any);
       }
 
+      uploadCacheRef.current.clear();
+      setFileUploads(new Map());
       setIsSuccess(true);
       if (!initialData) reset();
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -334,12 +791,17 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
       }, 900);
     } catch (err: any) {
       console.error('Submission Error:', err);
+      const errMsg = err?.message && typeof err.message === 'string' ? err.message : '';
       setFormError(
-        err?.message && typeof err.message === 'string' && err.message.includes('MB')
-          ? err.message
+        errMsg.includes('MB') ||
+          errMsg.includes('dibatalkan') ||
+          errMsg.includes('terhenti') ||
+          errMsg.includes('Waktu unggah')
+          ? errMsg
           : 'Gagal menyimpan data. Pastikan koneksi internet stabil, ukuran file maksimal 50 MB, dan seluruh data valid.'
       );
     } finally {
+      setIsUploadingStep(false);
       setUploadProgress(null);
     }
   };
@@ -347,97 +809,6 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
   const onInvalid = () => {
     setFormError('Terdapat kolom wajib yang belum diisi atau formatnya tidak sesuai. Periksa sorotan merah di bawah.');
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const InputField = ({
-    label,
-    name,
-    type = 'text',
-    error,
-    options,
-    placeholder,
-    disabled,
-    helper,
-  }: any) => (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-0.5">
-        {label}
-      </label>
-      {options ? (
-        <select
-          {...register(name)}
-          disabled={disabled}
-          className={cn(
-            'px-3.5 py-2.5 bg-[#F4F8FB] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-[#173B65] dark:text-slate-100 focus:ring-2 focus:ring-[#0072BC] focus:bg-white dark:focus:bg-[#0E1A2E] outline-none transition-all font-semibold disabled:opacity-60',
-            error && 'border-red-400 focus:ring-red-400'
-          )}
-        >
-          {options.map((opt: any) => (
-            <option key={opt.value} value={opt.value} className="dark:bg-slate-900">
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <input
-          type={type}
-          {...register(name)}
-          placeholder={placeholder}
-          disabled={disabled}
-          className={cn(
-            'px-3.5 py-2.5 bg-[#F4F8FB] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-[#173B65] dark:text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-[#0072BC] focus:bg-white dark:focus:bg-[#0E1A2E] outline-none transition-all font-semibold disabled:opacity-60',
-            error && 'border-red-400 focus:ring-red-400'
-          )}
-        />
-      )}
-      {helper && !error && <span className="text-[10px] text-slate-400 font-medium px-0.5">{helper}</span>}
-      {error && (
-        <span className="text-[11px] text-red-500 dark:text-red-400 font-semibold px-0.5">
-          {error.message}
-        </span>
-      )}
-    </div>
-  );
-
-  const FileUploadField = ({ label, name, error, accept, icon: Icon, helper }: any) => {
-    const currentValue = watch(name);
-    const selectedFile =
-      currentValue && typeof currentValue === 'object' && currentValue[0] instanceof File
-        ? (currentValue[0] as File)
-        : null;
-
-    return (
-      <div className="flex flex-col gap-1.5">
-        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-0.5">
-          {label}
-        </label>
-        <div className="relative">
-          <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0072BC] dark:text-[#72C8F1]" />
-          <input
-            type="file"
-            accept={accept}
-            {...register(name)}
-            className={cn(
-              'w-full pl-10 pr-3 py-2.5 bg-[#F4F8FB] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-[#0072BC] outline-none transition-all font-semibold text-slate-600 dark:text-slate-300 file:mr-3 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-[#EAF6FC] dark:file:bg-[#0072BC]/25 file:text-[#0072BC] dark:file:text-[#72C8F1] cursor-pointer',
-              error && 'border-red-400'
-            )}
-          />
-        </div>
-        {selectedFile && !error && (
-          <span className="text-[10px] text-[#0072BC] dark:text-[#72C8F1] font-semibold px-0.5 truncate">
-            Terpilih: {selectedFile.name} ({formatFileSize(selectedFile.size)})
-          </span>
-        )}
-        {helper && !error && (
-          <span className="text-[10px] text-slate-400 font-medium px-0.5">{helper}</span>
-        )}
-        {error && (
-          <span className="text-[11px] text-red-500 dark:text-red-400 font-semibold px-0.5">
-            {error.message}
-          </span>
-        )}
-      </div>
-    );
   };
 
   return (
@@ -489,16 +860,27 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
             <p className="text-xs font-extrabold text-[#173B65] dark:text-slate-100 uppercase tracking-wider">
               {uploadProgress}
             </p>
+            {isUploadingStep && (
+              <button
+                type="button"
+                onClick={cancelAllActiveUploads}
+                className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/60 rounded-xl text-[11px] font-bold hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+              >
+                <X size={13} />
+                Batalkan Unggahan
+              </button>
+            )}
           </div>
         </div>
       )}
 
       <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-6">
         <SectionCard title="1. Data Personal & Kontak" subtitle="Identitas dasar dan informasi komunikasi pegawai">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             <InputField
               label="Nama Lengkap"
               name="fullName"
+              register={register}
               error={errors.fullName}
               placeholder="Contoh: Budi Santoso"
               disabled={isProfileEdit}
@@ -506,6 +888,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
             <InputField
               label="NIP"
               name="nip"
+              register={register}
               error={errors.nip}
               placeholder="Nomor Induk Pegawai"
               disabled={isProfileEdit || isEditing}
@@ -514,17 +897,19 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
             <InputField
               label="Jenis Kelamin"
               name="jenisKelamin"
+              register={register}
               disabled={isProfileEdit}
               options={[
                 { label: 'Laki-laki', value: 'Laki-laki' },
                 { label: 'Perempuan', value: 'Perempuan' },
               ]}
             />
-            <InputField label="Agama" name="agama" error={errors.agama} placeholder="Islam / Kristen / dll" />
+            <InputField label="Agama" name="agama" register={register} error={errors.agama} placeholder="Islam / Kristen / dll" />
             <div className="grid grid-cols-2 gap-3">
               <InputField
                 label="Tanggal Lahir"
                 name="tanggalLahir"
+                register={register}
                 type="date"
                 error={errors.tanggalLahir}
                 disabled={isProfileEdit}
@@ -541,6 +926,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
             <InputField
               label="Email Korporat"
               name="emailKorporat"
+              register={register}
               type="email"
               error={errors.emailKorporat}
               placeholder="nama@plnnusantarapower.co.id"
@@ -549,12 +935,14 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
             <InputField
               label="Nomor Telepon"
               name="noTelepon"
+              register={register}
               error={errors.noTelepon}
               placeholder="0812xxxx"
             />
             <InputField
               label="Pendidikan Terakhir"
               name="pendidikanTerakhir"
+              register={register}
               error={errors.pendidikanTerakhir}
               placeholder="S1 Teknik Elektro / D3"
             />
@@ -562,6 +950,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
               <InputField
                 label="Alamat Lengkap"
                 name="alamatLengkap"
+                register={register}
                 error={errors.alamatLengkap}
                 placeholder="Alamat domisili"
               />
@@ -571,14 +960,15 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
 
         <SectionCard title="2. Data Kepegawaian & Jabatan" subtitle="Penempatan unit, grade, dan afiliasi perusahaan">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            <InputField label="Jabatan Lengkap" name="jabatanLengkap" error={errors.jabatanLengkap} disabled={isProfileEdit} />
-            <InputField label="Unit Pelaksana" name="unitPelaksana" error={errors.unitPelaksana} disabled={isProfileEdit} />
-            <InputField label="Sub Unit" name="subUnit" error={errors.subUnit} disabled={isProfileEdit} />
-            <InputField label="Person Grade" name="personGrade" error={errors.personGrade} disabled={isProfileEdit} />
-            <InputField label="Position Grade" name="positionGrade" error={errors.positionGrade} disabled={isProfileEdit} />
+            <InputField label="Jabatan Lengkap" name="jabatanLengkap" register={register} error={errors.jabatanLengkap} disabled={isProfileEdit} />
+            <InputField label="Unit Pelaksana" name="unitPelaksana" register={register} error={errors.unitPelaksana} disabled={isProfileEdit} />
+            <InputField label="Sub Unit" name="subUnit" register={register} error={errors.subUnit} disabled={isProfileEdit} />
+            <InputField label="Person Grade" name="personGrade" register={register} error={errors.personGrade} disabled={isProfileEdit} />
+            <InputField label="Position Grade" name="positionGrade" register={register} error={errors.positionGrade} disabled={isProfileEdit} />
             <InputField
               label="Status Pegawai"
               name="status"
+              register={register}
               disabled={isProfileEdit}
               options={[
                 { label: 'Pegawai Organik', value: 'Pegawai Organik' },
@@ -589,6 +979,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
             <InputField
               label="Perusahaan"
               name="perusahaan"
+              register={register}
               disabled={isProfileEdit}
               options={[
                 { label: 'PT PLN Nusantara Power', value: 'PT PLN Nusantara Power' },
@@ -601,6 +992,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
               <InputField
                 label="Tgl Pengangkatan"
                 name="tanggalPengangkatan"
+                register={register}
                 type="date"
                 error={errors.tanggalPengangkatan}
                 disabled={isProfileEdit}
@@ -620,29 +1012,41 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
         <SectionCard title="3. Administrasi Tanggal & Legalitas" subtitle="Kronologi masa kerja, nomor identitas resmi, dan unggahan berkas">
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              <InputField label="Tanggal Masuk" name="tanggalMasuk" type="date" error={errors.tanggalMasuk} disabled={isProfileEdit} />
-              <InputField label="Tanggal CP" name="tanggalCalonPegawai" type="date" error={errors.tanggalCalonPegawai} disabled={isProfileEdit} />
-              <InputField label="Tgl Mulai Jabatan" name="tanggalMulaiJabatan" type="date" error={errors.tanggalMulaiJabatan} disabled={isProfileEdit} />
-              <InputField label="Tgl Pensiun Normal" name="tanggalPensiunNormal" type="date" error={errors.tanggalPensiunNormal} disabled={isProfileEdit} />
-              <InputField label="Tgl Akhir Kerja (Opsional)" name="tanggalBerakhirBekerja" type="date" disabled={isProfileEdit} />
+              <InputField label="Tanggal Masuk" name="tanggalMasuk" register={register} type="date" error={errors.tanggalMasuk} disabled={isProfileEdit} />
+              <InputField label="Tanggal CP" name="tanggalCalonPegawai" register={register} type="date" error={errors.tanggalCalonPegawai} disabled={isProfileEdit} />
+              <InputField label="Tgl Mulai Jabatan" name="tanggalMulaiJabatan" register={register} type="date" error={errors.tanggalMulaiJabatan} disabled={isProfileEdit} />
+              <InputField label="Tgl Pensiun Normal" name="tanggalPensiunNormal" register={register} type="date" error={errors.tanggalPensiunNormal} disabled={isProfileEdit} />
+              <InputField label="Tgl Akhir Kerja (Opsional)" name="tanggalBerakhirBekerja" register={register} type="date" disabled={isProfileEdit} />
             </div>
 
             <div className="pt-5 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              <InputField label="Nomor KTP (NIK)" name="noKTP" error={errors.noKTP} />
-              <InputField label="Nomor NPWP" name="noNPWP" error={errors.noNPWP} />
-              <InputField label="BPJS Kesehatan" name="noBPJSKesehatan" error={errors.noBPJSKesehatan} />
-              <InputField label="BPJS Ketenagakerjaan" name="noBPJSKetenagakerjaan" error={errors.noBPJSKetenagakerjaan} />
+              <InputField label="Nomor KTP (NIK)" name="noKTP" register={register} error={errors.noKTP} />
+              <InputField label="Nomor NPWP" name="noNPWP" register={register} error={errors.noNPWP} />
+              <InputField label="BPJS Kesehatan" name="noBPJSKesehatan" register={register} error={errors.noBPJSKesehatan} />
+              <InputField label="BPJS Ketenagakerjaan" name="noBPJSKetenagakerjaan" register={register} error={errors.noBPJSKetenagakerjaan} />
               <FileUploadField
                 label="Foto Pegawai"
                 name="photoUrl"
+                register={register}
+                watch={watch}
+                uploadPath="photos"
+                uploadLabel="Foto Pegawai"
+                fileUploads={fileUploads}
+                onFileSelected={startFileUpload}
                 error={errors.photoUrl}
                 accept="image/*"
                 icon={Camera}
-                helper="Maksimal 50 MB · Format gambar (JPG, PNG, WEBP)"
+                helper="Maksimal 50 MB · Otomatis dioptimalkan agar unggahan cepat"
               />
               <FileUploadField
                 label="Berkas Dossier (PDF/DOC)"
                 name="dossierUrl"
+                register={register}
+                watch={watch}
+                uploadPath="dossiers"
+                uploadLabel="Berkas Dossier"
+                fileUploads={fileUploads}
+                onFileSelected={startFileUpload}
                 error={errors.dossierUrl}
                 accept=".pdf,.doc,.docx"
                 icon={FileText}
@@ -676,12 +1080,14 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                   <InputField
                     label="Nama Pelatihan"
                     name={`trainings.${index}.namaPelatihan`}
+                    register={register}
                     error={errors.trainings?.[index]?.namaPelatihan}
                   />
                 </div>
                 <InputField
                   label="Tanggal"
                   name={`trainings.${index}.tanggalPelaksanaan`}
+                  register={register}
                   type="date"
                   error={errors.trainings?.[index]?.tanggalPelaksanaan}
                 />
@@ -690,6 +1096,12 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                     <FileUploadField
                       label="Sertifikat"
                       name={`trainings.${index}.certificateUrl`}
+                      register={register}
+                      watch={watch}
+                      uploadPath="certificates/trainings"
+                      uploadLabel={`Sertifikat Pelatihan ${index + 1}`}
+                      fileUploads={fileUploads}
+                      onFileSelected={startFileUpload}
                       error={errors.trainings?.[index]?.certificateUrl}
                       accept=".pdf,.jpg,.jpeg,.png"
                       icon={Upload}
@@ -741,18 +1153,21 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                   <InputField
                     label="Nama Sertifikasi"
                     name={`certifications.${index}.namaSertifikasi`}
+                    register={register}
                     error={errors.certifications?.[index]?.namaSertifikasi}
                   />
                 </div>
                 <InputField
                   label="Tgl Terbit"
                   name={`certifications.${index}.tanggalPelaksanaan`}
+                  register={register}
                   type="date"
                   error={errors.certifications?.[index]?.tanggalPelaksanaan}
                 />
                 <InputField
                   label="Masa Berlaku"
                   name={`certifications.${index}.masaBerlaku`}
+                  register={register}
                   type="date"
                   error={errors.certifications?.[index]?.masaBerlaku}
                 />
@@ -761,6 +1176,12 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                     <FileUploadField
                       label="Berkas"
                       name={`certifications.${index}.certificateUrl`}
+                      register={register}
+                      watch={watch}
+                      uploadPath="certificates/certs"
+                      uploadLabel={`Sertifikat ${index + 1}`}
+                      fileUploads={fileUploads}
+                      onFileSelected={startFileUpload}
                       error={errors.certifications?.[index]?.certificateUrl}
                       accept=".pdf,.jpg,.jpeg,.png"
                       icon={Upload}
@@ -803,7 +1224,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
             )}
             <button
               type="button"
-              onClick={() => reset()}
+              onClick={handleReset}
               className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-white dark:bg-[#0E1A2E] border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold text-xs hover:border-[#0072BC] transition-colors"
             >
               <RotateCcw size={14} />

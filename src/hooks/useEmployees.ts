@@ -80,15 +80,17 @@ export const useEmployees = (shouldFetch: boolean = true) => {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      await syncPublicVerification(docRef.id, employeeData);
-      await syncPublicStats();
-      await logActivity({
-        action: 'CREATE',
-        entityType: 'employee',
-        entityId: docRef.id,
-        entityName: `${employeeData.fullName} (${employeeData.nip})`,
-        description: `Menambahkan pegawai baru ${employeeData.fullName} (NIP: ${employeeData.nip}) pada ${employeeData.unitPelaksana}`,
-      });
+      await Promise.allSettled([
+        syncPublicVerification(docRef.id, employeeData),
+        syncPublicStats(),
+        logActivity({
+          action: 'CREATE',
+          entityType: 'employee',
+          entityId: docRef.id,
+          entityName: `${employeeData.fullName} (${employeeData.nip})`,
+          description: `Menambahkan pegawai baru ${employeeData.fullName} (NIP: ${employeeData.nip}) pada ${employeeData.unitPelaksana}`,
+        }),
+      ]);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'employees');
     }
@@ -106,18 +108,20 @@ export const useEmployees = (shouldFetch: boolean = true) => {
         ...employeeData,
         updatedAt: serverTimestamp(),
       });
-      await syncPublicVerification(id, mergedData);
-      await syncPublicStats();
       const label = mergedData.fullName
         ? `${mergedData.fullName}${mergedData.nip ? ` (${mergedData.nip})` : ''}`
         : id;
-      await logActivity({
-        action: 'UPDATE',
-        entityType: 'employee',
-        entityId: id,
-        entityName: label,
-        description: `Memperbarui data pegawai ${label}`,
-      });
+      await Promise.allSettled([
+        syncPublicVerification(id, mergedData),
+        syncPublicStats(),
+        logActivity({
+          action: 'UPDATE',
+          entityType: 'employee',
+          entityId: id,
+          entityName: label,
+          description: `Memperbarui data pegawai ${label}`,
+        }),
+      ]);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `employees/${id}`);
     }
@@ -133,15 +137,17 @@ export const useEmployees = (shouldFetch: boolean = true) => {
         label = `${d.fullName} (${d.nip})`;
       }
       await deleteDoc(docRef);
-      await deletePublicVerification(id);
-      await syncPublicStats();
-      await logActivity({
-        action: 'DELETE',
-        entityType: 'employee',
-        entityId: id,
-        entityName: label,
-        description: `Menghapus data pegawai ${label} dari sistem`,
-      });
+      await Promise.allSettled([
+        deletePublicVerification(id),
+        syncPublicStats(),
+        logActivity({
+          action: 'DELETE',
+          entityType: 'employee',
+          entityId: id,
+          entityName: label,
+          description: `Menghapus data pegawai ${label} dari sistem`,
+        }),
+      ]);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `employees/${id}`);
     }
