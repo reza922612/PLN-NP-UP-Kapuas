@@ -28,7 +28,7 @@ import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { logActivity } from '../../lib/activityLogger';
 import { useAuth } from '../../context/AuthContext';
 import { syncPublicVerification } from '../../lib/publicVerification';
-import { formatDate, calculateAge, calculateTenure, cn } from '../../lib/utils';
+import { formatDate, calculateAge, calculateTenure, calculatePositionTenure, cn } from '../../lib/utils';
 import { evaluateCertificationStatus } from '../../lib/certificationStatus';
 import { SectionCard } from '../common/DashboardUI';
 import { StoredImage, StoredFileLink } from '../common/StoredFileUI';
@@ -436,6 +436,10 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
                       <InfoItem label="Tanggal CP" value={formatDate(employee.tanggalCalonPegawai)} />
                       <InfoItem label="Tanggal Pengangkatan" value={formatDate(employee.tanggalPengangkatan)} />
                       <InfoItem label="Mulai Jabatan" value={formatDate(employee.tanggalMulaiJabatan)} />
+                      <InfoItem
+                        label="Masa Jabatan"
+                        value={calculatePositionTenure(employee.tanggalMulaiJabatan) || employee.masaJabatan || '-'}
+                      />
                       <InfoItem label="Tgl Pensiun Normal" value={formatDate(employee.tanggalPensiunNormal)} />
                       <InfoItem label="Tgl Berakhir" value={formatDate(employee.tanggalBerakhirBekerja)} />
                     </div>

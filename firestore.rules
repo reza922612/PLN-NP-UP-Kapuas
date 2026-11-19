@@ -136,6 +136,7 @@ service cloud.firestore {
              data.perusahaan is string &&
              data.status in ['Pegawai Organik', 'Pegawai Tugas Khusus', 'Tenaga Alih Daya'] &&
              (!('agama' in data) || (data.agama is string && data.agama.size() <= 50)) &&
+             (!('masaJabatan' in data) || (data.masaJabatan is string && data.masaJabatan.size() <= 64)) &&
              (!('familyMembers' in data) || (
                data.familyMembers is list &&
                data.familyMembers.size() <= 30 &&

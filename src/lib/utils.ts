@@ -39,3 +39,36 @@ export function calculateTenure(appointmentDate: string) {
   }
   return `${years} Tahun ${months} Bulan`;
 }
+
+export function calculatePositionTenure(startDate?: string): string {
+  if (!startDate) return "";
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(startDate.trim());
+  const start = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    : new Date(startDate);
+  if (Number.isNaN(start.getTime())) return "";
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (start > today) return "0 Tahun 0 Bulan";
+
+  let years = today.getFullYear() - start.getFullYear();
+  let months = today.getMonth() - start.getMonth();
+  let days = today.getDate() - start.getDate();
+
+  if (days < 0) {
+    months--;
+    const prevMonthDays = new Date(today.getFullYear(), today.getMonth(), 0).getDate();
+    days += prevMonthDays;
+  }
+  if (months < 0) {
+    years--;
+    months += 12;
+  }
+
+  if (years === 0 && months === 0) {
+    return `0 Tahun 0 Bulan (${days} Hari)`;
+  }
+  return `${years} Tahun ${months} Bulan`;
+}
+

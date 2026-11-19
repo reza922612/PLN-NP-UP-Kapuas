@@ -34,6 +34,7 @@
         "alamatLengkap": { "type": "string" },
         "tanggalLahir": { "type": "string", "format": "date" },
         "tanggalMulaiJabatan": { "type": "string", "format": "date" },
+        "masaJabatan": { "type": "string", "maxLength": 64, "description": "Masa jabatan terhitung otomatis dari tanggal mulai jabatan" },
         "tanggalPengangkatan": { "type": "string", "format": "date" },
         "tanggalBerakhirBekerja": { "type": "string", "format": "date" },
         "tanggalPensiunNormal": { "type": "string", "format": "date" },

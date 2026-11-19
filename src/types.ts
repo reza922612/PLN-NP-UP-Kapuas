@@ -42,6 +42,7 @@ export interface Employee {
   alamatLengkap: string;
   tanggalLahir: string;
   tanggalMulaiJabatan: string;
+  masaJabatan?: string;
   tanggalPengangkatan: string;
   tanggalBerakhirBekerja?: string;
   tanggalPensiunNormal: string;

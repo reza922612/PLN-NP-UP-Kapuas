@@ -23,7 +23,7 @@ import {
   X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '../../lib/utils';
+import { cn, calculatePositionTenure } from '../../lib/utils';
 import { differenceInYears } from 'date-fns';
 import { PageHeader, SectionCard } from '../common/DashboardUI';
 
@@ -90,6 +90,7 @@ const employeeSchema = z.object({
   alamatLengkap: z.string().min(1, 'Alamat wajib diisi'),
   tanggalLahir: z.string().min(1, 'Tanggal lahir wajib diisi'),
   tanggalMulaiJabatan: z.string().min(1, 'Tanggal mulai jabatan wajib diisi'),
+  masaJabatan: z.string().max(64).optional(),
   tanggalPengangkatan: z.string().min(1, 'Tanggal pengangkatan wajib diisi'),
   tanggalBerakhirBekerja: z.string().optional(),
   tanggalPensiunNormal: z.string().min(1, 'Tanggal pensiun wajib diisi'),
@@ -347,6 +348,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
@@ -354,6 +356,8 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
     defaultValues: initialData
       ? ({
           ...initialData,
+          masaJabatan:
+            initialData.masaJabatan || calculatePositionTenure(initialData.tanggalMulaiJabatan),
           familyMembers: (initialData.familyMembers || []).map((f) => ({
             nama: f.nama || '',
             hubunganKeluarga: f.hubunganKeluarga || 'Istri/Suami',
@@ -377,6 +381,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
           jenisKelamin: 'Laki-laki',
           status: 'Pegawai Organik',
           perusahaan: 'PT PLN Nusantara Power',
+          masaJabatan: '',
           familyMembers: [],
           trainings: [],
           certifications: [],
@@ -403,6 +408,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
 
   const birthDateValue = useWatch({ control, name: 'tanggalLahir' });
   const appointmentDateValue = useWatch({ control, name: 'tanggalPengangkatan' });
+  const positionStartDateValue = useWatch({ control, name: 'tanggalMulaiJabatan' });
 
   const age = useMemo(() => {
     if (!birthDateValue) return '-';
@@ -422,6 +428,15 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
       return '-';
     }
   }, [appointmentDateValue]);
+
+  const positionTenure = useMemo(
+    () => calculatePositionTenure(positionStartDateValue),
+    [positionStartDateValue]
+  );
+
+  useEffect(() => {
+    setValue('masaJabatan', positionTenure);
+  }, [positionTenure, setValue]);
 
   const updateFileUploadUI = useCallback((file: File, next: FileUploadStatus) => {
     if (!isMountedRef.current) return;
@@ -657,6 +672,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
 
       const payload = {
         ...data,
+        masaJabatan: calculatePositionTenure(data.tanggalMulaiJabatan) || data.masaJabatan || '',
         photoUrl: resolvedPhotoUrl || null,
         dossierUrl: resolvedDossierUrl || null,
         familyMembers: (data.familyMembers || []).map((m) => ({
@@ -918,6 +934,23 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
               <InputField label="Tanggal Masuk" name="tanggalMasuk" register={register} type="date" error={errors.tanggalMasuk} disabled={isProfileEdit} />
               <InputField label="Tanggal CP" name="tanggalCalonPegawai" register={register} type="date" error={errors.tanggalCalonPegawai} disabled={isProfileEdit} />
               <InputField label="Tgl Mulai Jabatan" name="tanggalMulaiJabatan" register={register} type="date" error={errors.tanggalMulaiJabatan} disabled={isProfileEdit} />
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="masaJabatanInput"
+                  className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-0.5"
+                >
+                  Masa Jabatan (Otomatis)
+                </label>
+                <input
+                  id="masaJabatanInput"
+                  type="text"
+                  readOnly
+                  {...register('masaJabatan')}
+                  value={positionTenure}
+                  placeholder="Otomatis dari Tgl Mulai Jabatan"
+                  className="px-3.5 py-2.5 bg-[#EAF6FC] dark:bg-slate-800 border border-[#72C8F1]/30 dark:border-slate-700 rounded-xl text-sm font-extrabold text-[#0072BC] dark:text-[#72C8F1] placeholder:text-slate-400 placeholder:font-medium placeholder:text-xs outline-none tabular-nums cursor-default"
+                />
+              </div>
               <InputField label="Tgl Pensiun Normal" name="tanggalPensiunNormal" register={register} type="date" error={errors.tanggalPensiunNormal} disabled={isProfileEdit} />
               <InputField label="Tgl Akhir Kerja (Opsional)" name="tanggalBerakhirBekerja" register={register} type="date" disabled={isProfileEdit} />
             </div>
