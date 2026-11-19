@@ -130,7 +130,7 @@ export interface OrgNode {
 }
 
 export type ActivityAction = 'CREATE' | 'UPDATE' | 'DELETE';
-export type ActivityEntityType = 'employee' | 'unit' | 'system' | 'sppd';
+export type ActivityEntityType = 'employee' | 'unit' | 'system' | 'sppd' | 'knowledge' | 'publikasi';
 
 export interface ActivityLog {
   id?: string;
@@ -274,4 +274,148 @@ export interface BroadcastAnnouncement {
   updatedAt: any;
 }
 
+export type KsfExecutionMethod = 'Online' | 'Offline';
 
+export interface KnowledgeSharingForum {
+  id?: string;
+  pemateriEmployeeId?: string | null;
+  namaPemateri: string;
+  pemateriNip?: string | null;
+  pemateriUnit?: string | null;
+  judulMateri: string;
+  tanggalPelaksanaan: string;
+  lokasiPelaksanaan: string;
+  metodePelaksanaan: KsfExecutionMethod;
+  evidenceUrl?: string | null;
+  evidenceFileName?: string | null;
+  createdByUid: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface CommunityOfPractice {
+  id?: string;
+  judulTopik: string;
+  leaderEmployeeId?: string | null;
+  namaLeader: string;
+  bidang: string;
+  tanggalPelaksanaan: string;
+  lokasi?: string | null;
+  ringkasan?: string | null;
+  evidenceUrl?: string | null;
+  evidenceFileName?: string | null;
+  createdByUid: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export type InnovationCategory =
+  | 'Aplikasi'
+  | 'Teknikal Supporting'
+  | 'Pembangkitan'
+  | 'Energi Baru Terbarukan (EBT)'
+  | 'Breakthrough Idea'
+  | 'Business Development';
+
+export const INNOVATION_CATEGORIES: InnovationCategory[] = [
+  'Aplikasi',
+  'Teknikal Supporting',
+  'Pembangkitan',
+  'Energi Baru Terbarukan (EBT)',
+  'Breakthrough Idea',
+  'Business Development',
+];
+
+export interface InnovationRecord {
+  id?: string;
+  inovator1: string;
+  inovator2: string;
+  inovator3: string;
+  inovatorEmployeeIds?: string[];
+  judulInovasi: string;
+  kategoriInovasi: InnovationCategory;
+  tanggalPelaksanaan?: string | null;
+  ringkasan?: string | null;
+  evidenceUrl?: string | null;
+  evidenceFileName?: string | null;
+  createdByUid: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface SopDocument {
+  id?: string;
+  nomorDokumen: string;
+  judul: string;
+  bidang: string;
+  tanggalBerlaku: string;
+  ringkasan?: string | null;
+  fileUrl?: string | null;
+  fileName?: string | null;
+  createdByUid: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface RegulationDocument {
+  id?: string;
+  nomorDokumen: string;
+  judul: string;
+  penerbit: string;
+  tanggalBerlaku: string;
+  ringkasan?: string | null;
+  fileUrl?: string | null;
+  fileName?: string | null;
+  createdByUid: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface BoardRegulationDocument {
+  id?: string;
+  nomorDokumen: string;
+  judul: string;
+  tanggalBerlaku: string;
+  ringkasan?: string | null;
+  fileUrl?: string | null;
+  fileName?: string | null;
+  createdByUid: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export type KnowledgeSectionType =
+  | 'knowledge-sharing'
+  | 'cop'
+  | 'inovasi'
+  | 'sop'
+  | 'regulasi'
+  | 'peraturan-direksi';
+
+export type PublicPublicationCategory = 'Berita' | 'Pengumuman' | 'Agenda Kegiatan TJSL';
+
+export const PUBLIC_PUBLICATION_CATEGORIES: PublicPublicationCategory[] = [
+  'Berita',
+  'Pengumuman',
+  'Agenda Kegiatan TJSL',
+];
+
+export interface PublicPublication {
+  id?: string;
+  kategori: PublicPublicationCategory;
+  judul: string;
+  tanggalKegiatan: string;
+  lokasi: string;
+  ringkasan: string;
+  konten: string;
+  penanggungJawab?: string | null;
+  imageUrl?: string | null;
+  imageFileName?: string | null;
+  attachmentUrl?: string | null;
+  attachmentFileName?: string | null;
+  isPublished: boolean;
+  createdByUid: string;
+  createdByName?: string | null;
+  createdAt: any;
+  updatedAt: any;
+}

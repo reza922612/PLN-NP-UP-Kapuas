@@ -17,6 +17,9 @@ import {
   UserCheck,
   ChevronLeft,
   ChevronRight,
+  Newspaper,
+  BookOpen,
+  Plane,
 } from 'lucide-react';
 import { format, formatDistanceToNow, isToday, subDays, isAfter } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -122,7 +125,18 @@ const ActivityLog: React.FC = () => {
       return {
         Waktu: dt ? format(dt, 'dd/MM/yyyy HH:mm:ss') : '-',
         Aksi: log.action,
-        Modul: log.entityType === 'employee' ? 'Pegawai' : log.entityType === 'unit' ? 'Unit' : 'Sistem',
+        Modul:
+          log.entityType === 'employee'
+            ? 'Pegawai'
+            : log.entityType === 'unit'
+              ? 'Unit'
+              : log.entityType === 'sppd'
+                ? 'SPPD'
+                : log.entityType === 'knowledge'
+                  ? 'Knowledge & Tata Kelola'
+                  : log.entityType === 'publikasi'
+                    ? 'Berita, Pengumuman & TJSL'
+                    : 'Sistem',
         Objek: log.entityName,
         Deskripsi: log.description,
         Admin: log.actorName,
@@ -168,6 +182,12 @@ const ActivityLog: React.FC = () => {
         return { label: 'Data Pegawai', icon: Users };
       case 'unit':
         return { label: 'Unit & Mesin', icon: Building2 };
+      case 'sppd':
+        return { label: 'SPPD & Perjalanan Dinas', icon: Plane };
+      case 'knowledge':
+        return { label: 'Knowledge & Tata Kelola', icon: BookOpen };
+      case 'publikasi':
+        return { label: 'Berita, Pengumuman & TJSL', icon: Newspaper };
       default:
         return { label: 'Sistem', icon: ShieldCheck };
     }
@@ -286,6 +306,9 @@ const ActivityLog: React.FC = () => {
                   <option value="ALL" className="dark:bg-slate-900">Semua Modul</option>
                   <option value="employee" className="dark:bg-slate-900">Data Pegawai</option>
                   <option value="unit" className="dark:bg-slate-900">Unit &amp; Mesin</option>
+                  <option value="sppd" className="dark:bg-slate-900">SPPD</option>
+                  <option value="knowledge" className="dark:bg-slate-900">Knowledge &amp; Tata Kelola</option>
+                  <option value="publikasi" className="dark:bg-slate-900">Berita, Pengumuman &amp; TJSL</option>
                   <option value="system" className="dark:bg-slate-900">Sistem</option>
                 </select>
               </div>

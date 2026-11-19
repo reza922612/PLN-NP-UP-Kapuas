@@ -25,6 +25,8 @@ import CertificationList from './components/employee/CertificationList';
 import SppdManagement from './components/sppd/SppdManagement';
 import BroadcastManagement from './components/dashboard/BroadcastManagement';
 import BroadcastToastContainer from './components/common/BroadcastToastContainer';
+import KnowledgeGovernanceView from './components/knowledge/KnowledgeGovernanceView';
+import PublicationManagementView from './components/dashboard/PublicationManagementView';
 import LandingPage from './components/public/LandingPage';
 import PublicEmployeeVerify from './components/public/PublicEmployeeVerify';
 import EmployeeDashboard from './components/employee/EmployeeDashboard';
@@ -43,6 +45,13 @@ const TAB_TITLES: Record<string, string> = {
   sppd: 'Pengajuan SPPD',
   certifications: 'Data Sertifikasi',
   'org-structure': 'Struktur Organisasi',
+  'knowledge-sharing': 'Knowledge Sharing Forum',
+  cop: 'Community Of Practice',
+  inovasi: 'Inovasi Pegawai',
+  sop: 'Data SOP',
+  regulasi: 'Data Regulasi',
+  'peraturan-direksi': 'Peraturan Direksi',
+  publications: 'Berita, Pengumuman & Agenda Kegiatan TJSL',
   units: 'Data Pembangkit',
   broadcasts: 'Pengumuman Broadcast',
   'activity-log': 'Activity Log',
@@ -292,6 +301,25 @@ const MainApp: React.FC = () => {
           <SppdManagement
             employees={employees}
             canApprove={profile?.role === 'admin' || profile?.role === 'super_admin'}
+          />
+        );
+      case 'knowledge-sharing':
+      case 'cop':
+      case 'inovasi':
+      case 'sop':
+      case 'regulasi':
+      case 'peraturan-direksi':
+        return (
+          <KnowledgeGovernanceView
+            section={activeTab}
+            employees={employees}
+            canManage={profile?.role === 'admin' || profile?.role === 'super_admin'}
+          />
+        );
+      case 'publications':
+        return (
+          <PublicationManagementView
+            canManage={profile?.role === 'admin' || profile?.role === 'super_admin'}
           />
         );
       default:

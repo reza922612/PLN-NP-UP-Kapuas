@@ -15,7 +15,14 @@ export type FileCategory =
   | 'certification_cert'
   | 'scan_doc'
   | 'unit_photo'
-  | 'sppd_attachment';
+  | 'sppd_attachment'
+  | 'ksf_evidence'
+  | 'cop_evidence'
+  | 'inovasi_doc'
+  | 'sop_doc'
+  | 'regulasi_doc'
+  | 'perdir_doc'
+  | 'publication_media';
 
 export interface UploadFileSmartOptions {
   file: File | Blob;
@@ -275,7 +282,12 @@ const uploadToFirestoreStorage = async (
   const fileId = `file_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   const cleanFileName = (originalName || 'dokumen').trim().slice(0, 256) || 'dokumen';
   const mimeType = (fileToUpload.type || 'application/octet-stream').slice(0, 128);
-  const isPublic = category === 'photo' || category === 'unit_photo';
+  const isPublic =
+    category === 'photo' ||
+    category === 'unit_photo' ||
+    category === 'ksf_evidence' ||
+    category === 'inovasi_doc' ||
+    category === 'publication_media';
 
   // Fast single-document inline upload for files <= 450 KB
   if (fileToUpload.size <= INLINE_THRESHOLD_BYTES) {

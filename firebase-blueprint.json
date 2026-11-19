@@ -124,7 +124,7 @@
       "type": "object",
       "properties": {
         "action": { "type": "string", "enum": ["CREATE", "UPDATE", "DELETE"] },
-        "entityType": { "type": "string", "enum": ["employee", "unit", "system", "sppd"] },
+        "entityType": { "type": "string", "enum": ["employee", "unit", "system", "sppd", "knowledge", "publikasi"] },
         "entityId": { "type": "string", "maxLength": 128 },
         "entityName": { "type": "string", "maxLength": 256 },
         "description": { "type": "string", "maxLength": 512 },
@@ -341,7 +341,22 @@
         "sizeBytes": { "type": "number" },
         "category": {
           "type": "string",
-          "enum": ["photo", "dossier", "training_cert", "certification_cert", "scan_doc", "unit_photo", "sppd_attachment"]
+          "enum": [
+            "photo",
+            "dossier",
+            "training_cert",
+            "certification_cert",
+            "scan_doc",
+            "unit_photo",
+            "sppd_attachment",
+            "ksf_evidence",
+            "cop_evidence",
+            "inovasi_doc",
+            "sop_doc",
+            "regulasi_doc",
+            "perdir_doc",
+            "publication_media"
+          ]
         },
         "isPublic": { "type": "boolean" },
         "chunkCount": { "type": "number" },
@@ -362,6 +377,166 @@
         "uploadedByUid": { "type": "string", "maxLength": 128 }
       },
       "required": ["fileId", "index", "data", "uploadedByUid"]
+    },
+    "KnowledgeSharingForum": {
+      "title": "KnowledgeSharingForum",
+      "description": "Publicly visible Knowledge Sharing Forum execution record synced with employee presenters",
+      "type": "object",
+      "properties": {
+        "pemateriEmployeeId": { "type": "string", "maxLength": 128 },
+        "namaPemateri": { "type": "string", "maxLength": 256 },
+        "pemateriNip": { "type": "string", "maxLength": 64 },
+        "pemateriUnit": { "type": "string", "maxLength": 256 },
+        "judulMateri": { "type": "string", "maxLength": 300 },
+        "tanggalPelaksanaan": { "type": "string", "format": "date", "maxLength": 32 },
+        "lokasiPelaksanaan": { "type": "string", "maxLength": 256 },
+        "metodePelaksanaan": { "type": "string", "enum": ["Online", "Offline"] },
+        "evidenceUrl": { "type": "string", "maxLength": 1024 },
+        "evidenceFileName": { "type": "string", "maxLength": 256 },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["namaPemateri", "judulMateri", "tanggalPelaksanaan", "lokasiPelaksanaan", "metodePelaksanaan", "createdByUid", "createdAt", "updatedAt"]
+    },
+    "CommunityOfPractice": {
+      "title": "CommunityOfPractice",
+      "description": "Internal Community of Practice records accessible to registered employees",
+      "type": "object",
+      "properties": {
+        "judulTopik": { "type": "string", "maxLength": 300 },
+        "leaderEmployeeId": { "type": "string", "maxLength": 128 },
+        "namaLeader": { "type": "string", "maxLength": 256 },
+        "bidang": { "type": "string", "maxLength": 128 },
+        "tanggalPelaksanaan": { "type": "string", "format": "date", "maxLength": 32 },
+        "lokasi": { "type": "string", "maxLength": 256 },
+        "ringkasan": { "type": "string", "maxLength": 1000 },
+        "evidenceUrl": { "type": "string", "maxLength": 1024 },
+        "evidenceFileName": { "type": "string", "maxLength": 256 },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["judulTopik", "namaLeader", "bidang", "tanggalPelaksanaan", "createdByUid", "createdAt", "updatedAt"]
+    },
+    "InnovationRecord": {
+      "title": "InnovationRecord",
+      "description": "Publicly visible employee innovation record with 3 innovators and innovation category",
+      "type": "object",
+      "properties": {
+        "inovator1": { "type": "string", "maxLength": 256 },
+        "inovator2": { "type": "string", "maxLength": 256 },
+        "inovator3": { "type": "string", "maxLength": 256 },
+        "inovatorEmployeeIds": { "type": "array" },
+        "judulInovasi": { "type": "string", "maxLength": 300 },
+        "kategoriInovasi": {
+          "type": "string",
+          "enum": [
+            "Aplikasi",
+            "Teknikal Supporting",
+            "Pembangkitan",
+            "Energi Baru Terbarukan (EBT)",
+            "Breakthrough Idea",
+            "Business Development"
+          ]
+        },
+        "tanggalPelaksanaan": { "type": "string", "format": "date", "maxLength": 32 },
+        "ringkasan": { "type": "string", "maxLength": 1000 },
+        "evidenceUrl": { "type": "string", "maxLength": 1024 },
+        "evidenceFileName": { "type": "string", "maxLength": 256 },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["inovator1", "inovator2", "inovator3", "judulInovasi", "kategoriInovasi", "createdByUid", "createdAt", "updatedAt"]
+    },
+    "SopDocument": {
+      "title": "SopDocument",
+      "description": "Internal Standard Operating Procedure (SOP) documents for registered employees",
+      "type": "object",
+      "properties": {
+        "nomorDokumen": { "type": "string", "maxLength": 100 },
+        "judul": { "type": "string", "maxLength": 300 },
+        "bidang": { "type": "string", "maxLength": 128 },
+        "tanggalBerlaku": { "type": "string", "format": "date", "maxLength": 32 },
+        "ringkasan": { "type": "string", "maxLength": 1000 },
+        "fileUrl": { "type": "string", "maxLength": 1024 },
+        "fileName": { "type": "string", "maxLength": 256 },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nomorDokumen", "judul", "bidang", "tanggalBerlaku", "createdByUid", "createdAt", "updatedAt"]
+    },
+    "RegulationDocument": {
+      "title": "RegulationDocument",
+      "description": "Internal regulatory reference documents for registered employees",
+      "type": "object",
+      "properties": {
+        "nomorDokumen": { "type": "string", "maxLength": 100 },
+        "judul": { "type": "string", "maxLength": 300 },
+        "penerbit": { "type": "string", "maxLength": 200 },
+        "tanggalBerlaku": { "type": "string", "format": "date", "maxLength": 32 },
+        "ringkasan": { "type": "string", "maxLength": 1000 },
+        "fileUrl": { "type": "string", "maxLength": 1024 },
+        "fileName": { "type": "string", "maxLength": 256 },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nomorDokumen", "judul", "penerbit", "tanggalBerlaku", "createdByUid", "createdAt", "updatedAt"]
+    },
+    "BoardRegulationDocument": {
+      "title": "BoardRegulationDocument",
+      "description": "Internal Board of Directors regulations (Peraturan Direksi) for registered employees",
+      "type": "object",
+      "properties": {
+        "nomorDokumen": { "type": "string", "maxLength": 100 },
+        "judul": { "type": "string", "maxLength": 300 },
+        "tanggalBerlaku": { "type": "string", "format": "date", "maxLength": 32 },
+        "ringkasan": { "type": "string", "maxLength": 1000 },
+        "fileUrl": { "type": "string", "maxLength": 1024 },
+        "fileName": { "type": "string", "maxLength": 256 },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["nomorDokumen", "judul", "tanggalBerlaku", "createdByUid", "createdAt", "updatedAt"]
+    },
+    "PublicPublication": {
+      "title": "PublicPublication",
+      "description": "Berita, Pengumuman, and Agenda Kegiatan TJSL managed by admins and displayed on the public landing page",
+      "type": "object",
+      "properties": {
+        "kategori": { "type": "string", "enum": ["Berita", "Pengumuman", "Agenda Kegiatan TJSL"] },
+        "judul": { "type": "string", "maxLength": 300 },
+        "tanggalKegiatan": { "type": "string", "format": "date", "maxLength": 32 },
+        "lokasi": { "type": "string", "maxLength": 256 },
+        "ringkasan": { "type": "string", "maxLength": 600 },
+        "konten": { "type": "string", "maxLength": 5000 },
+        "penanggungJawab": { "type": "string", "maxLength": 256 },
+        "imageUrl": { "type": "string", "maxLength": 1024 },
+        "imageFileName": { "type": "string", "maxLength": 256 },
+        "attachmentUrl": { "type": "string", "maxLength": 1024 },
+        "attachmentFileName": { "type": "string", "maxLength": 256 },
+        "isPublished": { "type": "boolean" },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdByName": { "type": "string", "maxLength": 256 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "kategori",
+        "judul",
+        "tanggalKegiatan",
+        "lokasi",
+        "ringkasan",
+        "konten",
+        "isPublished",
+        "createdByUid",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -424,6 +599,34 @@
     "stored_files/{fileId}/chunks/{chunkId}": {
       "schema": "StoredFileChunk",
       "description": "Chunked base64 slices for large uploaded files up to 50 MB"
+    },
+    "knowledge_sharing_forums/{forumId}": {
+      "schema": "KnowledgeSharingForum",
+      "description": "Publicly readable Knowledge Sharing Forum records"
+    },
+    "community_of_practices/{copId}": {
+      "schema": "CommunityOfPractice",
+      "description": "Protected Community of Practice records for registered employees"
+    },
+    "innovations/{innovationId}": {
+      "schema": "InnovationRecord",
+      "description": "Publicly readable Innovation records"
+    },
+    "sop_documents/{sopId}": {
+      "schema": "SopDocument",
+      "description": "Protected SOP documents for registered employees"
+    },
+    "regulations/{regulationId}": {
+      "schema": "RegulationDocument",
+      "description": "Protected regulatory documents for registered employees"
+    },
+    "board_regulations/{perdirId}": {
+      "schema": "BoardRegulationDocument",
+      "description": "Protected Peraturan Direksi documents for registered employees"
+    },
+    "public_publications/{pubId}": {
+      "schema": "PublicPublication",
+      "description": "Publicly visible Berita, Pengumuman, and Agenda Kegiatan TJSL for the landing page"
     }
   }
 }

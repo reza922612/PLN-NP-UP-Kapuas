@@ -12,12 +12,16 @@ import {
   ExternalLink,
   Facebook,
   FileText,
+  Globe,
   Instagram,
   Layers,
+  Lightbulb,
+  Loader2,
+  Lock,
   Mail,
   MapPin,
   Menu,
-  Newspaper,
+  Monitor,
   Phone,
   QrCode,
   Search,
@@ -31,19 +35,25 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import PlnNpLogo from '../common/PlnNpLogo';
 import ThemeToggle from '../common/ThemeToggle';
+import { StoredFileLink, StoredImage } from '../common/StoredFileUI';
 import LandingInfographic from './LandingInfographic';
 import UnitLocationMap from './UnitLocationMap';
 import { usePublicStats } from '../../hooks/usePublicStats';
+import { usePublicKnowledgeShowcase } from '../../hooks/useKnowledgeGovernance';
+import { usePublicPublishedPublications } from '../../hooks/usePublicPublications';
 import {
   COMMAND_NOTIFICATIONS,
-  KNOWLEDGE_ARTICLES,
-  KnowledgeArticle,
-  NEWS_ITEMS,
-  NewsItem,
   SERVICE_UNIT_PROFILES,
   ServiceUnitProfile,
 } from '../../data/landingContent';
-import { cn } from '../../lib/utils';
+import {
+  INNOVATION_CATEGORIES,
+  InnovationRecord,
+  KnowledgeSharingForum,
+  PUBLIC_PUBLICATION_CATEGORIES,
+  PublicPublication,
+} from '../../types';
+import { cn, formatDate } from '../../lib/utils';
 
 const HERO_IMAGE = '/src/assets/images/hero_digital_powerplant_1794932209286.jpg';
 const COMMAND_IMAGE = '/src/assets/images/kapuas_grid_control_1794932209715.jpg';
@@ -55,6 +65,8 @@ interface LandingPageProps {
 
 const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) => {
   const { stats, loading: statsLoading, error: statsError, refresh: refreshStats } = usePublicStats();
+  const { ksfList, innovationList, loading: publicKnowledgeLoading } = usePublicKnowledgeShowcase();
+  const { publications, loading: publicationsLoading } = usePublicPublishedPublications();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [heroImgFailed, setHeroImgFailed] = useState(false);
@@ -62,8 +74,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
 
   // Interactive Filters & Selection
   const [selectedUnitId, setSelectedUnitId] = useState<string>(SERVICE_UNIT_PROFILES[0].id);
-  const [knowledgeFilter, setKnowledgeFilter] = useState<string>('Semua');
-  const [newsFilter, setNewsFilter] = useState<string>('Semua');
+  const [ksfMethodFilter, setKsfMethodFilter] = useState<'Semua' | 'Online' | 'Offline'>('Semua');
+  const [innovationCatFilter, setInnovationCatFilter] = useState<string>('Semua');
+  const [publicationFilter, setPublicationFilter] = useState<string>('Semua');
 
   // Modals & Popovers
   const [searchOpen, setSearchOpen] = useState(false);
@@ -78,8 +91,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
       return [];
     }
   });
-  const [activeKnowledge, setActiveKnowledge] = useState<KnowledgeArticle | null>(null);
-  const [activeNews, setActiveNews] = useState<NewsItem | null>(null);
+  const [activePublicKsf, setActivePublicKsf] = useState<KnowledgeSharingForum | null>(null);
+  const [activePublicInnovation, setActivePublicInnovation] = useState<InnovationRecord | null>(null);
+  const [activePublication, setActivePublication] = useState<PublicPublication | null>(null);
   const [verifyModalOpen, setVerifyModalOpen] = useState(false);
   const [verifyInputId, setVerifyInputId] = useState('');
 
@@ -92,8 +106,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
       } else if (e.key === 'Escape') {
         setSearchOpen(false);
         setNotificationsOpen(false);
-        setActiveKnowledge(null);
-        setActiveNews(null);
+        setActivePublicKsf(null);
+        setActivePublicInnovation(null);
+        setActivePublication(null);
         setVerifyModalOpen(false);
       }
     };
@@ -150,15 +165,20 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
 
   const matchedSelectedUnitSummary = getMatchedUnitSummary(selectedUnit);
 
-  const filteredKnowledge = useMemo(() => {
-    if (knowledgeFilter === 'Semua') return KNOWLEDGE_ARTICLES;
-    return KNOWLEDGE_ARTICLES.filter((k) => k.category === knowledgeFilter);
-  }, [knowledgeFilter]);
+  const filteredKsf = useMemo(() => {
+    if (ksfMethodFilter === 'Semua') return ksfList;
+    return ksfList.filter((item) => item.metodePelaksanaan === ksfMethodFilter);
+  }, [ksfList, ksfMethodFilter]);
 
-  const filteredNews = useMemo(() => {
-    if (newsFilter === 'Semua') return NEWS_ITEMS;
-    return NEWS_ITEMS.filter((n) => n.category === newsFilter);
-  }, [newsFilter]);
+  const filteredInnovations = useMemo(() => {
+    if (innovationCatFilter === 'Semua') return innovationList;
+    return innovationList.filter((item) => item.kategoriInovasi === innovationCatFilter);
+  }, [innovationList, innovationCatFilter]);
+
+  const filteredPublications = useMemo(() => {
+    if (publicationFilter === 'Semua') return publications;
+    return publications.filter((p) => p.kategori === publicationFilter);
+  }, [publications, publicationFilter]);
 
   const quickAccessItems = [
     {
@@ -199,19 +219,19 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
     },
     {
       id: 'qa-knowledge',
-      title: 'Knowledge Center & SOP',
-      description: 'Akses standar operasional, regulasi RBAC, pedoman data pembangkit, dan panduan sistem.',
-      actionLabel: 'Baca Pustaka',
+      title: 'Knowledge Sharing & Inovasi',
+      description: 'Jelajahi pelaksanaan Knowledge Sharing Forum dan daftar inovasi pegawai UP Kapuas.',
+      actionLabel: 'Lihat Pelaksanaan',
       icon: BookOpen,
       accentBg: 'bg-slate-800 dark:bg-slate-700 text-white',
       onClick: () => scrollToSection('#knowledge'),
     },
     {
       id: 'qa-news',
-      title: 'Informasi & Agenda UP Kapuas',
-      description: 'Ikuti pengumuman pembaruan platform, agenda sinkronisasi unit, dan informasi korporat.',
-      actionLabel: 'Lihat Agenda',
-      icon: Newspaper,
+      title: 'Berita, Pengumuman & Agenda TJSL',
+      description: 'Ikuti berita terbaru, pengumuman resmi, dan agenda kegiatan TJSL UP Kapuas.',
+      actionLabel: 'Lihat Informasi',
+      icon: Calendar,
       accentBg: 'bg-blue-700 text-white',
       onClick: () => scrollToSection('#informasi'),
     },
@@ -223,8 +243,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
     if (!q) {
       return {
         units: SERVICE_UNIT_PROFILES.slice(0, 3),
-        knowledge: KNOWLEDGE_ARTICLES.slice(0, 3),
-        news: NEWS_ITEMS.slice(0, 2),
+        ksf: ksfList.slice(0, 3),
+        innovations: innovationList.slice(0, 3),
+        publications: publications.slice(0, 3),
         quick: quickAccessItems.slice(0, 3),
       };
     }
@@ -241,20 +262,30 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
           u.system.toLowerCase().includes(q) ||
           u.summary.toLowerCase().includes(q)
       ),
-      knowledge: KNOWLEDGE_ARTICLES.filter(
+      ksf: ksfList.filter(
         (k) =>
-          k.title.toLowerCase().includes(q) ||
-          k.category.toLowerCase().includes(q) ||
-          k.summary.toLowerCase().includes(q)
+          k.judulMateri.toLowerCase().includes(q) ||
+          k.namaPemateri.toLowerCase().includes(q) ||
+          k.lokasiPelaksanaan.toLowerCase().includes(q) ||
+          k.metodePelaksanaan.toLowerCase().includes(q)
       ),
-      news: NEWS_ITEMS.filter(
-        (n) =>
-          n.title.toLowerCase().includes(q) ||
-          n.category.toLowerCase().includes(q) ||
-          n.excerpt.toLowerCase().includes(q)
+      innovations: innovationList.filter(
+        (inv) =>
+          inv.judulInovasi.toLowerCase().includes(q) ||
+          inv.kategoriInovasi.toLowerCase().includes(q) ||
+          inv.inovator1.toLowerCase().includes(q) ||
+          inv.inovator2.toLowerCase().includes(q) ||
+          inv.inovator3.toLowerCase().includes(q)
+      ),
+      publications: publications.filter(
+        (p) =>
+          p.judul.toLowerCase().includes(q) ||
+          p.kategori.toLowerCase().includes(q) ||
+          p.lokasi.toLowerCase().includes(q) ||
+          p.ringkasan.toLowerCase().includes(q)
       ),
     };
-  }, [searchQuery]);
+  }, [searchQuery, ksfList, innovationList, publications]);
 
   const handleVerifySubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -299,7 +330,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
               { label: 'Quick Access', target: '#quick-access' },
               { label: 'Infografis', target: '#infografis' },
               { label: 'Unit Layanan', target: '#unit-layanan' },
-              { label: 'Knowledge', target: '#knowledge' },
+              { label: 'KSF & Inovasi', target: '#knowledge' },
               { label: 'Informasi', target: '#informasi' },
             ].map((nav) => (
               <a
@@ -474,7 +505,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
                 { label: 'Quick Access', target: '#quick-access' },
                 { label: 'Infografis Data', target: '#infografis' },
                 { label: 'Unit Layanan UP Kapuas', target: '#unit-layanan' },
-                { label: 'Knowledge Center', target: '#knowledge' },
+                { label: 'Knowledge Sharing & Inovasi', target: '#knowledge' },
                 { label: 'Berita & Agenda', target: '#informasi' },
               ].map((nav) => (
                 <button
@@ -554,7 +585,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
                       className="text-pln-blue dark:text-cyan-400 shrink-0"
                     />
                     <span className="truncate">
-                      Cari unit Sei Raya, Siantan, SOP, atau verifikasi ID pegawai...
+                      Cari unit Sei Raya, Siantan, KSF, inovasi, atau ID pegawai...
                     </span>
                   </span>
                   <span className="text-xs font-semibold text-pln-blue dark:text-cyan-400 whitespace-nowrap shrink-0 group-hover:translate-x-0.5 transition-transform">
@@ -918,111 +949,317 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
         </div>
       </section>
 
-      {/* Knowledge Center: SOP, Regulasi, Pedoman, Tutorial */}
+      {/* Public Showcase: ONLY Knowledge Sharing Forum & Inovasi */}
       <section
         id="knowledge"
         className="py-24 px-6 bg-slate-50/70 dark:bg-slate-900/30 border-y border-slate-200/70 dark:border-slate-800/80"
       >
-        <div className="max-w-7xl mx-auto space-y-10">
+        <div className="max-w-7xl mx-auto space-y-12">
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-            <div className="space-y-2 max-w-2xl">
+            <div className="space-y-2 max-w-3xl">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-pln-blue dark:text-cyan-400">
-                Knowledge Center
+                Publikasi Pengetahuan &amp; Inovasi
               </p>
               <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white text-balance">
-                SOP, Regulasi, Pedoman, dan Tutorial SIMAP
+                Knowledge Sharing Forum &amp; Inovasi UP Kapuas
               </h2>
               <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                Referensi kerja digital untuk administrator unit, pengelola aset pembangkit, dan seluruh pegawai UP Kapuas.
+                Menampilkan pelaksanaan Knowledge Sharing Forum serta inovasi pegawai PLN Nusantara Power UP Kapuas secara terbuka. Untuk mengakses Community Of Practice, Data SOP, Data Regulasi, dan Peraturan Direksi, silakan login sebagai pegawai terdaftar.
               </p>
-            </div>
-
-            <div className="flex items-center gap-1 p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-fit overflow-x-auto max-w-full">
-              {['Semua', 'SOP', 'Regulasi', 'Pedoman', 'Tutorial'].map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setKnowledgeFilter(cat)}
-                  className={cn(
-                    'px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0',
-                    knowledgeFilter === cat
-                      ? 'bg-pln-blue text-white'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  )}
-                >
-                  {cat}
-                </button>
-              ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredKnowledge.map((article) => (
-              <article
-                key={article.id}
-                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-7 flex flex-col justify-between gap-6 hover:border-pln-blue dark:hover:border-cyan-400 transition-colors"
-              >
-                <div className="space-y-3">
-                  {/* Unboxed typographic metadata (Zero-Pill Rule) */}
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                    <span className="font-bold text-pln-blue dark:text-cyan-400">
-                      {article.category}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span>{article.readTime}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>{article.audience}</span>
-                  </div>
-
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-snug">
-                    {article.title}
+          {/* 1. Knowledge Sharing Forum */}
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-pln-blue/10 dark:bg-cyan-500/10 text-pln-blue dark:text-cyan-400 flex items-center justify-center shrink-0">
+                  <BookOpen size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">
+                    Pelaksanaan Knowledge Sharing Forum
                   </h3>
-                  <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                    {article.summary}
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {filteredKsf.length} kegiatan sharing session tercatat
                   </p>
                 </div>
+              </div>
 
-                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
-                  <span className="text-xs text-slate-400 dark:text-slate-500">
-                    {article.updatedLabel}
-                  </span>
+              <div className="flex items-center gap-1 p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-fit">
+                {(['Semua', 'Online', 'Offline'] as const).map((method) => (
                   <button
+                    key={method}
                     type="button"
-                    onClick={() => setActiveKnowledge(article)}
-                    className="text-xs font-bold text-pln-blue dark:text-cyan-400 hover:underline inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                    onClick={() => setKsfMethodFilter(method)}
+                    className={cn(
+                      'px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0',
+                      ksfMethodFilter === method
+                        ? 'bg-pln-blue text-white'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    )}
                   >
-                    Baca Panduan Lengkap
-                    <ChevronRight size={14} />
+                    {method}
                   </button>
+                ))}
+              </div>
+            </div>
+
+            {publicKnowledgeLoading ? (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-10 flex items-center justify-center gap-3 text-sm text-slate-500 dark:text-slate-400">
+                <Loader2 size={18} className="animate-spin text-pln-blue dark:text-cyan-400" />
+                <span>Memuat pelaksanaan Knowledge Sharing Forum...</span>
+              </div>
+            ) : filteredKsf.length === 0 ? (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-10 text-center space-y-2">
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  Belum ada pelaksanaan Knowledge Sharing Forum pada filter ini
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Data yang ditambahkan oleh Administrator pada menu Knowledge Sharing Forum akan otomatis tampil di sini.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {filteredKsf.map((item) => (
+                  <article
+                    key={item.id}
+                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 flex flex-col justify-between gap-5 hover:border-pln-blue dark:hover:border-cyan-400 transition-colors"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                        <span className="inline-flex items-center gap-1 font-bold text-pln-blue dark:text-cyan-400">
+                          {item.metodePelaksanaan === 'Online' ? (
+                            <Monitor size={13} />
+                          ) : (
+                            <Globe size={13} />
+                          )}
+                          {item.metodePelaksanaan}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span>{formatDate(item.tanggalPelaksanaan)}</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="truncate">{item.lokasiPelaksanaan}</span>
+                      </div>
+
+                      <h4 className="text-lg font-bold text-slate-900 dark:text-white leading-snug">
+                        {item.judulMateri}
+                      </h4>
+
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                        Pemateri:{' '}
+                        <span className="font-semibold text-slate-900 dark:text-white">
+                          {item.namaPemateri}
+                        </span>
+                        {item.pemateriUnit ? ` · ${item.pemateriUnit}` : ''}
+                      </p>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                      {item.evidenceUrl ? (
+                        <StoredFileLink
+                          url={item.evidenceUrl}
+                          fileName={item.evidenceFileName || 'Evidence KSF'}
+                          className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1.5"
+                        >
+                          <FileText size={13} />
+                          <span>Lihat Evidence</span>
+                        </StoredFileLink>
+                      ) : (
+                        <span className="text-xs text-slate-400 dark:text-slate-500">
+                          Evidence tidak dilampirkan
+                        </span>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setActivePublicKsf(item)}
+                        className="text-xs font-bold text-pln-blue dark:text-cyan-400 hover:underline inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                      >
+                        Detail Pelaksanaan
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 2. Inovasi */}
+          <div className="space-y-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                  <Lightbulb size={20} />
                 </div>
-              </article>
-            ))}
+                <div>
+                  <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">
+                    Pelaksanaan &amp; Karya Inovasi Pegawai
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {filteredInnovations.length} karya inovasi ditampilkan
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1 p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto max-w-full">
+                {['Semua', ...INNOVATION_CATEGORIES].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setInnovationCatFilter(cat)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0',
+                      innovationCatFilter === cat
+                        ? 'bg-pln-blue text-white'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    )}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {publicKnowledgeLoading ? (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-10 flex items-center justify-center gap-3 text-sm text-slate-500 dark:text-slate-400">
+                <Loader2 size={18} className="animate-spin text-pln-blue dark:text-cyan-400" />
+                <span>Memuat daftar inovasi...</span>
+              </div>
+            ) : filteredInnovations.length === 0 ? (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-10 text-center space-y-2">
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  Belum ada data inovasi pada kategori ini
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Inovasi yang diinput melalui menu Inovasi di dashboard akan tampil di sini.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {filteredInnovations.map((item) => {
+                  const innovators = [item.inovator1, item.inovator2, item.inovator3].filter(
+                    (name) => Boolean(name && name.trim())
+                  );
+                  return (
+                    <article
+                      key={item.id}
+                      className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 flex flex-col justify-between gap-5 hover:border-pln-blue dark:hover:border-cyan-400 transition-colors"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                          <span className="font-bold text-pln-blue dark:text-cyan-400">
+                            {item.kategoriInovasi}
+                          </span>
+                          {item.tanggalPelaksanaan && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span>{formatDate(item.tanggalPelaksanaan)}</span>
+                            </>
+                          )}
+                        </div>
+
+                        <h4 className="text-lg font-bold text-slate-900 dark:text-white leading-snug">
+                          {item.judulInovasi}
+                        </h4>
+
+                        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                          Tim Inovator:{' '}
+                          <span className="font-semibold text-slate-900 dark:text-white">
+                            {innovators.join(' · ') || '—'}
+                          </span>
+                        </p>
+
+                        {item.ringkasan && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
+                            {item.ringkasan}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                        {item.evidenceUrl ? (
+                          <StoredFileLink
+                            url={item.evidenceUrl}
+                            fileName={item.evidenceFileName || 'Dokumen Inovasi'}
+                            className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1.5"
+                          >
+                            <FileText size={13} />
+                            <span>Lihat Dokumen</span>
+                          </StoredFileLink>
+                        ) : (
+                          <span className="text-xs text-slate-400 dark:text-slate-500">
+                            Karya Inovasi UP Kapuas
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setActivePublicInnovation(item)}
+                          className="text-xs font-bold text-pln-blue dark:text-cyan-400 hover:underline inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                        >
+                          Detail Inovasi
+                          <ChevronRight size={14} />
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 3. Restricted Internal Modules Notice */}
+          <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex items-start gap-4 max-w-3xl">
+              <div className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800 text-pln-blue dark:text-cyan-400 flex items-center justify-center shrink-0 mt-0.5">
+                <Lock size={20} />
+              </div>
+              <div className="space-y-1.5">
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                  Community Of Practice, Data SOP, Data Regulasi &amp; Peraturan Direksi
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Dokumen dan forum internal berikut bersifat terbatas untuk pegawai PLN Nusantara Power UP Kapuas yang telah terdaftar. Silakan masuk portal untuk melihat seluruh data secara lengkap.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={onStart}
+              className="px-6 py-3 bg-pln-blue text-white rounded-xl text-xs font-bold hover:bg-pln-dark transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0"
+            >
+              <Lock size={14} />
+              Login Pegawai Terdaftar
+            </button>
           </div>
         </div>
       </section>
 
-      {/* News & Information Section */}
+      {/* Berita, Pengumuman & Agenda Kegiatan TJSL Section */}
       <section id="informasi" className="py-24 px-6">
         <div className="max-w-7xl mx-auto space-y-10">
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
             <div className="space-y-2 max-w-2xl">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-pln-blue dark:text-cyan-400">
-                News & Information
+                Publikasi &amp; TJSL UP Kapuas
               </p>
               <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white text-balance">
-                Berita, Pengumuman, dan Agenda Kegiatan
+                Berita, Pengumuman &amp; Agenda Kegiatan TJSL
               </h2>
             </div>
 
-            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-fit">
-              {['Semua', 'Berita', 'Pengumuman', 'Agenda'].map((cat) => (
+            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-fit overflow-x-auto max-w-full">
+              {(['Semua', ...PUBLIC_PUBLICATION_CATEGORIES] as const).map((cat) => (
                 <button
                   key={cat}
                   type="button"
-                  onClick={() => setNewsFilter(cat)}
+                  onClick={() => setPublicationFilter(cat)}
                   className={cn(
                     'px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0',
-                    newsFilter === cat
+                    publicationFilter === cat
                       ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   )}
@@ -1056,46 +1293,86 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
                     Ekosistem Digital PLN Nusantara Power
                   </p>
                   <p className="text-lg font-bold leading-snug">
-                    Satu Sumber Informasi Terverifikasi untuk Pegawai dan Pengelola Unit.
+                    Berita Korporat, Pengumuman Resmi &amp; Agenda Kegiatan TJSL UP Kapuas.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* News & Agenda List */}
-            <div className="lg:col-span-7 divide-y divide-slate-200 dark:divide-slate-800 border-y border-slate-200 dark:border-slate-800 flex flex-col justify-between">
-              {filteredNews.map((item) => (
-                <div
-                  key={item.id}
-                  className="py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                >
-                  <div className="space-y-2 max-w-xl">
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                      <span className="font-bold text-pln-blue dark:text-cyan-400">
-                        {item.category}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <span>{item.dateLabel}</span>
-                      <span aria-hidden="true">·</span>
-                      <span>{item.location}</span>
-                    </div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white leading-snug">
-                      {item.title}
-                    </h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                      {item.excerpt}
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveNews(item)}
-                    className="self-start sm:self-center px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-pln-blue dark:hover:border-cyan-400 hover:text-pln-blue dark:hover:text-cyan-400 transition-colors whitespace-nowrap shrink-0"
-                  >
-                    Selengkapnya
-                  </button>
+            {/* Dynamic Publications List */}
+            <div className="lg:col-span-7 divide-y divide-slate-200 dark:divide-slate-800 border-y border-slate-200 dark:border-slate-800 flex flex-col justify-center">
+              {publicationsLoading ? (
+                <div className="py-12 flex items-center justify-center gap-3 text-sm text-slate-500 dark:text-slate-400">
+                  <Loader2 size={18} className="animate-spin text-pln-blue dark:text-cyan-400" />
+                  <span>Memuat berita, pengumuman, dan agenda TJSL...</span>
                 </div>
-              ))}
+              ) : filteredPublications.length === 0 ? (
+                <div className="py-12 text-center space-y-2 px-4">
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                    Belum ada {publicationFilter === 'Semua' ? 'Berita, Pengumuman, atau Agenda TJSL' : publicationFilter} yang diterbitkan
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                    Administrator dapat menambahkan Berita, Pengumuman, dan Agenda Kegiatan TJSL melalui menu sidebar portal SIMAP.
+                  </p>
+                </div>
+              ) : (
+                filteredPublications.map((item) => (
+                  <div
+                    key={item.id}
+                    className="py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  >
+                    <div className="flex items-start gap-4 min-w-0 flex-1">
+                      {item.imageUrl && (
+                        <div className="w-20 h-16 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 shrink-0 hidden sm:block">
+                          <StoredImage
+                            src={item.imageUrl}
+                            alt={item.judul}
+                            className="w-full h-full object-cover"
+                            fallback={null}
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-1.5 min-w-0 max-w-xl">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                          <span className="font-bold text-pln-blue dark:text-cyan-400">
+                            {item.kategori}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span>{formatDate(item.tanggalKegiatan)}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{item.lokasi}</span>
+                        </div>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white leading-snug">
+                          {item.judul}
+                        </h3>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-2">
+                          {item.ringkasan}
+                        </p>
+                        {item.attachmentUrl && (
+                          <div className="pt-1">
+                            <StoredFileLink
+                              url={item.attachmentUrl}
+                              fileName={item.attachmentFileName || 'Lampiran'}
+                              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1.5"
+                            >
+                              <FileText size={13} />
+                              <span>{item.attachmentFileName || 'Lihat Lampiran'}</span>
+                            </StoredFileLink>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setActivePublication(item)}
+                      className="self-start sm:self-center px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:border-pln-blue dark:hover:border-cyan-400 hover:text-pln-blue dark:hover:text-cyan-400 transition-colors whitespace-nowrap shrink-0"
+                    >
+                      Selengkapnya
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -1188,7 +1465,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
                   { label: 'Quick Access Layanan', target: '#quick-access' },
                   { label: 'Infografis Data Aktual', target: '#infografis' },
                   { label: 'Profil Unit UP Kapuas', target: '#unit-layanan' },
-                  { label: 'Knowledge Center & SOP', target: '#knowledge' },
+                  { label: 'Knowledge Sharing & Inovasi', target: '#knowledge' },
                   { label: 'Berita & Agenda', target: '#informasi' },
                 ].map((link) => (
                   <li key={link.target}>
@@ -1265,7 +1542,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
                   autoFocus
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari unit layanan, SOP, berita, modul dashboard, atau ID pegawai..."
+                  placeholder="Cari unit layanan, Knowledge Sharing Forum, inovasi, berita, atau ID pegawai..."
                   className="flex-1 bg-transparent text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none"
                 />
                 <button
@@ -1337,59 +1614,90 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
                   </div>
                 )}
 
-                {searchResults.knowledge.length > 0 && (
+                {searchResults.ksf.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1">
-                      Knowledge Center
+                      Knowledge Sharing Forum
                     </p>
                     <div className="space-y-1">
-                      {searchResults.knowledge.map((k) => (
+                      {searchResults.ksf.map((k) => (
                         <button
                           key={k.id}
                           type="button"
                           onClick={() => {
                             setSearchOpen(false);
-                            setActiveKnowledge(k);
+                            setActivePublicKsf(k);
                           }}
                           className="w-full p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between gap-3 text-left transition-colors"
                         >
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                              {k.title}
+                              {k.judulMateri}
                             </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                              {k.category} · {k.readTime}
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                              {k.namaPemateri} · {k.metodePelaksanaan} · {formatDate(k.tanggalPelaksanaan)}
                             </p>
                           </div>
-                          <FileText size={15} className="text-slate-400 shrink-0" />
+                          <BookOpen size={15} className="text-slate-400 shrink-0" />
                         </button>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {searchResults.news.length > 0 && (
+                {searchResults.innovations.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1">
-                      Berita & Agenda
+                      Inovasi Pegawai
                     </p>
                     <div className="space-y-1">
-                      {searchResults.news.map((n) => (
+                      {searchResults.innovations.map((inv) => (
                         <button
-                          key={n.id}
+                          key={inv.id}
                           type="button"
                           onClick={() => {
                             setSearchOpen(false);
-                            setActiveNews(n);
+                            setActivePublicInnovation(inv);
                           }}
                           className="w-full p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between gap-3 text-left transition-colors"
                         >
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                              {n.title}
+                              {inv.judulInovasi}
                             </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                              {n.category} · {n.dateLabel}
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                              {inv.kategoriInovasi} · {[inv.inovator1, inv.inovator2, inv.inovator3].filter(Boolean).join(', ')}
+                            </p>
+                          </div>
+                          <Lightbulb size={15} className="text-slate-400 shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {searchResults.publications.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                      Berita, Pengumuman &amp; Agenda TJSL
+                    </p>
+                    <div className="space-y-1">
+                      {searchResults.publications.map((pub) => (
+                        <button
+                          key={pub.id}
+                          type="button"
+                          onClick={() => {
+                            setSearchOpen(false);
+                            setActivePublication(pub);
+                          }}
+                          className="w-full p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-between gap-3 text-left transition-colors"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                              {pub.judul}
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                              {pub.kategori} · {formatDate(pub.tanggalKegiatan)} · {pub.lokasi}
                             </p>
                           </div>
                           <Calendar size={15} className="text-slate-400 shrink-0" />
@@ -1428,8 +1736,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
                 )}
 
                 {searchResults.units.length === 0 &&
-                  searchResults.knowledge.length === 0 &&
-                  searchResults.news.length === 0 &&
+                  searchResults.ksf.length === 0 &&
+                  searchResults.innovations.length === 0 &&
+                  searchResults.publications.length === 0 &&
                   searchResults.quick.length === 0 && (
                     <p className="text-center text-sm text-slate-500 dark:text-slate-400 py-6">
                       Tidak ada konten yang cocok dengan kata kunci tersebut.
@@ -1441,82 +1750,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
         )}
       </AnimatePresence>
 
-      {/* Knowledge Article Reader Modal */}
+      {/* Public Knowledge Sharing Forum Detail Modal */}
       <AnimatePresence>
-        {activeKnowledge && (
-          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.97 }}
-              className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 space-y-6 max-h-[85vh] overflow-y-auto"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-2">
-                  <div className="text-xs text-slate-500 dark:text-slate-400">
-                    <span className="font-bold text-pln-blue dark:text-cyan-400">
-                      {activeKnowledge.category}
-                    </span>{' '}
-                    · {activeKnowledge.audience} · {activeKnowledge.readTime}
-                  </div>
-                  <h3 className="text-xl font-extrabold text-slate-900 dark:text-white leading-snug">
-                    {activeKnowledge.title}
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveKnowledge(null)}
-                  aria-label="Tutup panduan"
-                  className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                {activeKnowledge.summary}
-              </p>
-
-              <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Langkah Pelaksanaan
-                </p>
-                <ol className="space-y-3">
-                  {activeKnowledge.steps.map((step, index) => (
-                    <li
-                      key={index}
-                      className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-200 leading-relaxed"
-                    >
-                      <span className="w-6 h-6 rounded-lg bg-pln-blue/10 dark:bg-cyan-500/15 text-pln-blue dark:text-cyan-400 font-mono text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
-                        {index + 1}
-                      </span>
-                      <span>{step}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
-                <span className="text-xs text-slate-400">{activeKnowledge.updatedLabel}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveKnowledge(null);
-                    onStart();
-                  }}
-                  className="px-5 py-2.5 bg-pln-blue text-white rounded-xl text-xs font-bold hover:bg-pln-dark transition-colors"
-                >
-                  Buka di Dashboard
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* News & Agenda Detail Modal */}
-      <AnimatePresence>
-        {activeNews && (
+        {activePublicKsf && (
           <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
@@ -1528,17 +1764,183 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
                 <div className="space-y-2">
                   <div className="text-xs text-slate-500 dark:text-slate-400">
                     <span className="font-bold text-pln-blue dark:text-cyan-400">
-                      {activeNews.category}
+                      Knowledge Sharing Forum · {activePublicKsf.metodePelaksanaan}
                     </span>{' '}
-                    · {activeNews.dateLabel} · {activeNews.location}
+                    · {formatDate(activePublicKsf.tanggalPelaksanaan)}
                   </div>
                   <h3 className="text-xl font-extrabold text-slate-900 dark:text-white leading-snug">
-                    {activeNews.title}
+                    {activePublicKsf.judulMateri}
                   </h3>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setActiveNews(null)}
+                  onClick={() => setActivePublicKsf(null)}
+                  aria-label="Tutup detail"
+                  className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                <div>
+                  <p className="text-slate-400 font-semibold">Nama Pemateri</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
+                    {activePublicKsf.namaPemateri}
+                  </p>
+                  {(activePublicKsf.pemateriNip || activePublicKsf.pemateriUnit) && (
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      {[activePublicKsf.pemateriNip, activePublicKsf.pemateriUnit].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-slate-400 font-semibold">Lokasi Pelaksanaan</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
+                    {activePublicKsf.lokasiPelaksanaan}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                {activePublicKsf.evidenceUrl ? (
+                  <StoredFileLink
+                    url={activePublicKsf.evidenceUrl}
+                    fileName={activePublicKsf.evidenceFileName || 'Evidence KSF'}
+                    className="px-4 py-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-bold hover:underline inline-flex items-center gap-1.5"
+                  >
+                    <FileText size={14} />
+                    <span>Buka / Unduh Evidence</span>
+                  </StoredFileLink>
+                ) : (
+                  <span className="text-xs text-slate-400">Tidak ada lampiran evidence</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setActivePublicKsf(null)}
+                  className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Tutup
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Public Innovation Detail Modal */}
+      <AnimatePresence>
+        {activePublicInnovation && (
+          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 space-y-5 max-h-[85vh] overflow-y-auto"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    <span className="font-bold text-pln-blue dark:text-cyan-400">
+                      Inovasi · {activePublicInnovation.kategoriInovasi}
+                    </span>
+                    {activePublicInnovation.tanggalPelaksanaan
+                      ? ` · ${formatDate(activePublicInnovation.tanggalPelaksanaan)}`
+                      : ''}
+                  </div>
+                  <h3 className="text-xl font-extrabold text-slate-900 dark:text-white leading-snug">
+                    {activePublicInnovation.judulInovasi}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActivePublicInnovation(null)}
+                  aria-label="Tutup detail inovasi"
+                  className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                <p className="text-xs font-semibold text-slate-400">Daftar Inovator</p>
+                <ol className="space-y-1 text-sm font-bold text-slate-900 dark:text-white">
+                  {[
+                    activePublicInnovation.inovator1,
+                    activePublicInnovation.inovator2,
+                    activePublicInnovation.inovator3,
+                  ]
+                    .filter((name) => Boolean(name && name.trim()))
+                    .map((name, idx) => (
+                      <li key={idx}>
+                        {idx + 1}. {name}
+                      </li>
+                    ))}
+                </ol>
+              </div>
+
+              {activePublicInnovation.ringkasan && (
+                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                  {activePublicInnovation.ringkasan}
+                </p>
+              )}
+
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                {activePublicInnovation.evidenceUrl ? (
+                  <StoredFileLink
+                    url={activePublicInnovation.evidenceUrl}
+                    fileName={activePublicInnovation.evidenceFileName || 'Dokumen Inovasi'}
+                    className="px-4 py-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-bold hover:underline inline-flex items-center gap-1.5"
+                  >
+                    <FileText size={14} />
+                    <span>Buka Dokumen Inovasi</span>
+                  </StoredFileLink>
+                ) : (
+                  <span className="text-xs text-slate-400">Tidak ada dokumen lampiran</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setActivePublicInnovation(null)}
+                  className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Tutup
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Public Publication (Berita, Pengumuman, Agenda TJSL) Detail Modal */}
+      <AnimatePresence>
+        {activePublication && (
+          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              className="w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-6 sm:p-8 space-y-5 max-h-[85vh] overflow-y-auto"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    <span className="font-bold text-pln-blue dark:text-cyan-400">
+                      {activePublication.kategori}
+                    </span>{' '}
+                    · {formatDate(activePublication.tanggalKegiatan)} · {activePublication.lokasi}
+                  </div>
+                  <h3 className="text-xl font-extrabold text-slate-900 dark:text-white leading-snug">
+                    {activePublication.judul}
+                  </h3>
+                  {activePublication.penanggungJawab && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Penanggung Jawab: {activePublication.penanggungJawab}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActivePublication(null)}
                   aria-label="Tutup informasi"
                   className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
@@ -1546,16 +1948,37 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart, onVerifyEmployee }) 
                 </button>
               </div>
 
-              <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                {activeNews.content.map((para, idx) => (
-                  <p key={idx}>{para}</p>
-                ))}
+              {activePublication.imageUrl && (
+                <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 max-h-72 bg-slate-100 dark:bg-slate-800">
+                  <StoredImage
+                    src={activePublication.imageUrl}
+                    alt={activePublication.judul}
+                    className="w-full h-full max-h-72 object-cover"
+                    fallback={null}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                {activePublication.konten}
               </div>
 
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                {activePublication.attachmentUrl ? (
+                  <StoredFileLink
+                    url={activePublication.attachmentUrl}
+                    fileName={activePublication.attachmentFileName || 'Lampiran Publikasi'}
+                    className="px-4 py-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-bold hover:underline inline-flex items-center gap-1.5"
+                  >
+                    <FileText size={14} />
+                    <span>{activePublication.attachmentFileName || 'Buka Lampiran'}</span>
+                  </StoredFileLink>
+                ) : (
+                  <span className="text-xs text-slate-400">Publikasi Resmi UP Kapuas</span>
+                )}
                 <button
                   type="button"
-                  onClick={() => setActiveNews(null)}
+                  onClick={() => setActivePublication(null)}
                   className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
                   Tutup

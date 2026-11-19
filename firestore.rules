@@ -27,6 +27,12 @@ service cloud.firestore {
       return hasRole('viewer') || isAdmin();
     }
 
+    function isRegisteredUser() {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             getUserData().role in ['super_admin', 'admin', 'viewer', 'employee'];
+    }
+
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -200,7 +206,7 @@ service cloud.firestore {
       return data.keys().hasAll(['action', 'entityType', 'entityId', 'entityName', 'description', 'actorUid', 'actorEmail', 'actorName', 'createdAt']) &&
              data.keys().hasOnly(['action', 'entityType', 'entityId', 'entityName', 'description', 'actorUid', 'actorEmail', 'actorName', 'actorRole', 'createdAt']) &&
              data.action in ['CREATE', 'UPDATE', 'DELETE'] &&
-             data.entityType in ['employee', 'unit', 'system', 'sppd'] &&
+             data.entityType in ['employee', 'unit', 'system', 'sppd', 'knowledge', 'publikasi'] &&
              data.entityId is string && data.entityId.size() > 0 && data.entityId.size() <= 128 &&
              data.entityName is string && data.entityName.size() > 0 && data.entityName.size() <= 256 &&
              data.description is string && data.description.size() > 0 && data.description.size() <= 512 &&
@@ -413,7 +419,22 @@ service cloud.firestore {
              data.fileName is string && data.fileName.size() > 0 && data.fileName.size() <= 256 &&
              data.mimeType is string && data.mimeType.size() > 0 && data.mimeType.size() <= 128 &&
              data.sizeBytes is number && data.sizeBytes >= 0 && data.sizeBytes <= 52428800 &&
-             data.category in ['photo', 'dossier', 'training_cert', 'certification_cert', 'scan_doc', 'unit_photo', 'sppd_attachment'] &&
+             data.category in [
+               'photo',
+               'dossier',
+               'training_cert',
+               'certification_cert',
+               'scan_doc',
+               'unit_photo',
+               'sppd_attachment',
+               'ksf_evidence',
+               'cop_evidence',
+               'inovasi_doc',
+               'sop_doc',
+               'regulasi_doc',
+               'perdir_doc',
+               'publication_media'
+             ] &&
              data.isPublic is bool &&
              data.chunkCount is number && data.chunkCount >= 0 && data.chunkCount <= 120 &&
              ((data.chunkCount == 0 && data.inlineData is string && data.inlineData.size() <= 750000) ||
@@ -439,6 +460,7 @@ service cloud.firestore {
       allow get: if isValidId(fileId) && (
         existing().isPublic == true ||
         isViewer() ||
+        (isRegisteredUser() && existing().category in ['cop_evidence', 'sop_doc', 'regulasi_doc', 'perdir_doc']) ||
         (isSignedIn() && existing().uploadedByUid == request.auth.uid)
       );
       allow list: if false;
@@ -447,7 +469,7 @@ service cloud.firestore {
                     incoming().uploadedByUid == request.auth.uid &&
                     incoming().createdAt == request.time && (
                       incoming().isPublic == false ||
-                      (isAdmin() && incoming().category in ['photo', 'unit_photo'])
+                      (isAdmin() && incoming().category in ['photo', 'unit_photo', 'ksf_evidence', 'inovasi_doc', 'publication_media'])
                     );
       allow update: if false;
       allow delete: if isValidId(fileId) && (
@@ -460,6 +482,7 @@ service cloud.firestore {
                    exists(/databases/$(database)/documents/stored_files/$(fileId)) && (
                      getStoredFileParent(fileId).isPublic == true ||
                      isViewer() ||
+                     (isRegisteredUser() && getStoredFileParent(fileId).category in ['cop_evidence', 'sop_doc', 'regulasi_doc', 'perdir_doc']) ||
                      (isSignedIn() && getStoredFileParent(fileId).uploadedByUid == request.auth.uid)
                    );
         allow list: if false;
@@ -476,6 +499,333 @@ service cloud.firestore {
            getStoredFileParent(fileId).uploadedByUid == request.auth.uid)
         );
       }
+    }
+
+    // 10. Knowledge Sharing Forum (Publicly visible on Landing Page, Admin CRUD)
+    function isValidKnowledgeSharingForum(data) {
+      return data.keys().hasAll([
+               'namaPemateri', 'judulMateri', 'tanggalPelaksanaan', 'lokasiPelaksanaan',
+               'metodePelaksanaan', 'createdByUid', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'pemateriEmployeeId', 'namaPemateri', 'pemateriNip', 'pemateriUnit',
+               'judulMateri', 'tanggalPelaksanaan', 'lokasiPelaksanaan', 'metodePelaksanaan',
+               'evidenceUrl', 'evidenceFileName', 'createdByUid', 'createdAt', 'updatedAt'
+             ]) &&
+             (!('pemateriEmployeeId' in data) || data.pemateriEmployeeId == null || (data.pemateriEmployeeId is string && data.pemateriEmployeeId.size() <= 128)) &&
+             data.namaPemateri is string && data.namaPemateri.size() > 0 && data.namaPemateri.size() <= 256 &&
+             (!('pemateriNip' in data) || data.pemateriNip == null || (data.pemateriNip is string && data.pemateriNip.size() <= 64)) &&
+             (!('pemateriUnit' in data) || data.pemateriUnit == null || (data.pemateriUnit is string && data.pemateriUnit.size() <= 256)) &&
+             data.judulMateri is string && data.judulMateri.size() > 0 && data.judulMateri.size() <= 300 &&
+             data.tanggalPelaksanaan is string && data.tanggalPelaksanaan.size() > 0 && data.tanggalPelaksanaan.size() <= 32 &&
+             data.lokasiPelaksanaan is string && data.lokasiPelaksanaan.size() > 0 && data.lokasiPelaksanaan.size() <= 256 &&
+             data.metodePelaksanaan in ['Online', 'Offline'] &&
+             (!('evidenceUrl' in data) || data.evidenceUrl == null || (data.evidenceUrl is string && data.evidenceUrl.size() <= 1024)) &&
+             (!('evidenceFileName' in data) || data.evidenceFileName == null || (data.evidenceFileName is string && data.evidenceFileName.size() <= 256)) &&
+             data.createdByUid is string && data.createdByUid.size() > 0 && data.createdByUid.size() <= 128 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /knowledge_sharing_forums/{forumId} {
+      allow get: if isValidId(forumId);
+      allow list: if true;
+      allow create: if isValidId(forumId) && isAdmin() &&
+                    isValidKnowledgeSharingForum(incoming()) &&
+                    incoming().createdByUid == request.auth.uid &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time;
+      allow update: if isValidId(forumId) && isAdmin() &&
+                    isValidKnowledgeSharingForum(incoming()) &&
+                    incoming().createdByUid == existing().createdByUid &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time &&
+                    incoming().diff(existing()).affectedKeys().hasOnly([
+                      'pemateriEmployeeId', 'namaPemateri', 'pemateriNip', 'pemateriUnit',
+                      'judulMateri', 'tanggalPelaksanaan', 'lokasiPelaksanaan', 'metodePelaksanaan',
+                      'evidenceUrl', 'evidenceFileName', 'updatedAt'
+                    ]);
+      allow delete: if isValidId(forumId) && isAdmin();
+    }
+
+    // 11. Inovasi (Publicly visible on Landing Page, Admin CRUD)
+    function isValidInnovationRecord(data) {
+      return data.keys().hasAll([
+               'inovator1', 'inovator2', 'inovator3', 'judulInovasi', 'kategoriInovasi',
+               'createdByUid', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'inovator1', 'inovator2', 'inovator3', 'inovatorEmployeeIds',
+               'judulInovasi', 'kategoriInovasi', 'tanggalPelaksanaan', 'ringkasan',
+               'evidenceUrl', 'evidenceFileName', 'createdByUid', 'createdAt', 'updatedAt'
+             ]) &&
+             data.inovator1 is string && data.inovator1.size() > 0 && data.inovator1.size() <= 256 &&
+             data.inovator2 is string && data.inovator2.size() <= 256 &&
+             data.inovator3 is string && data.inovator3.size() <= 256 &&
+             (!('inovatorEmployeeIds' in data) || (
+               data.inovatorEmployeeIds is list &&
+               data.inovatorEmployeeIds.size() <= 3 &&
+               (data.inovatorEmployeeIds.size() == 0 || (data.inovatorEmployeeIds[0] is string && data.inovatorEmployeeIds[0].size() <= 128))
+             )) &&
+             data.judulInovasi is string && data.judulInovasi.size() > 0 && data.judulInovasi.size() <= 300 &&
+             data.kategoriInovasi in [
+               'Aplikasi',
+               'Teknikal Supporting',
+               'Pembangkitan',
+               'Energi Baru Terbarukan (EBT)',
+               'Breakthrough Idea',
+               'Business Development'
+             ] &&
+             (!('tanggalPelaksanaan' in data) || data.tanggalPelaksanaan == null || (data.tanggalPelaksanaan is string && data.tanggalPelaksanaan.size() <= 32)) &&
+             (!('ringkasan' in data) || data.ringkasan == null || (data.ringkasan is string && data.ringkasan.size() <= 1000)) &&
+             (!('evidenceUrl' in data) || data.evidenceUrl == null || (data.evidenceUrl is string && data.evidenceUrl.size() <= 1024)) &&
+             (!('evidenceFileName' in data) || data.evidenceFileName == null || (data.evidenceFileName is string && data.evidenceFileName.size() <= 256)) &&
+             data.createdByUid is string && data.createdByUid.size() > 0 && data.createdByUid.size() <= 128 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /innovations/{innovationId} {
+      allow get: if isValidId(innovationId);
+      allow list: if true;
+      allow create: if isValidId(innovationId) && isAdmin() &&
+                    isValidInnovationRecord(incoming()) &&
+                    incoming().createdByUid == request.auth.uid &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time;
+      allow update: if isValidId(innovationId) && isAdmin() &&
+                    isValidInnovationRecord(incoming()) &&
+                    incoming().createdByUid == existing().createdByUid &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time &&
+                    incoming().diff(existing()).affectedKeys().hasOnly([
+                      'inovator1', 'inovator2', 'inovator3', 'inovatorEmployeeIds',
+                      'judulInovasi', 'kategoriInovasi', 'tanggalPelaksanaan', 'ringkasan',
+                      'evidenceUrl', 'evidenceFileName', 'updatedAt'
+                    ]);
+      allow delete: if isValidId(innovationId) && isAdmin();
+    }
+
+    // 12. Community Of Practice (Registered Employee / User Login Required)
+    function isValidCommunityOfPractice(data) {
+      return data.keys().hasAll([
+               'judulTopik', 'namaLeader', 'bidang', 'tanggalPelaksanaan',
+               'createdByUid', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'judulTopik', 'leaderEmployeeId', 'namaLeader', 'bidang',
+               'tanggalPelaksanaan', 'lokasi', 'ringkasan',
+               'evidenceUrl', 'evidenceFileName', 'createdByUid', 'createdAt', 'updatedAt'
+             ]) &&
+             data.judulTopik is string && data.judulTopik.size() > 0 && data.judulTopik.size() <= 300 &&
+             (!('leaderEmployeeId' in data) || data.leaderEmployeeId == null || (data.leaderEmployeeId is string && data.leaderEmployeeId.size() <= 128)) &&
+             data.namaLeader is string && data.namaLeader.size() > 0 && data.namaLeader.size() <= 256 &&
+             data.bidang is string && data.bidang.size() > 0 && data.bidang.size() <= 128 &&
+             data.tanggalPelaksanaan is string && data.tanggalPelaksanaan.size() > 0 && data.tanggalPelaksanaan.size() <= 32 &&
+             (!('lokasi' in data) || data.lokasi == null || (data.lokasi is string && data.lokasi.size() <= 256)) &&
+             (!('ringkasan' in data) || data.ringkasan == null || (data.ringkasan is string && data.ringkasan.size() <= 1000)) &&
+             (!('evidenceUrl' in data) || data.evidenceUrl == null || (data.evidenceUrl is string && data.evidenceUrl.size() <= 1024)) &&
+             (!('evidenceFileName' in data) || data.evidenceFileName == null || (data.evidenceFileName is string && data.evidenceFileName.size() <= 256)) &&
+             data.createdByUid is string && data.createdByUid.size() > 0 && data.createdByUid.size() <= 128 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /community_of_practices/{copId} {
+      allow get: if isValidId(copId) && isRegisteredUser();
+      allow list: if isRegisteredUser();
+      allow create: if isValidId(copId) && isAdmin() &&
+                    isValidCommunityOfPractice(incoming()) &&
+                    incoming().createdByUid == request.auth.uid &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time;
+      allow update: if isValidId(copId) && isAdmin() &&
+                    isValidCommunityOfPractice(incoming()) &&
+                    incoming().createdByUid == existing().createdByUid &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time &&
+                    incoming().diff(existing()).affectedKeys().hasOnly([
+                      'judulTopik', 'leaderEmployeeId', 'namaLeader', 'bidang',
+                      'tanggalPelaksanaan', 'lokasi', 'ringkasan',
+                      'evidenceUrl', 'evidenceFileName', 'updatedAt'
+                    ]);
+      allow delete: if isValidId(copId) && isAdmin();
+    }
+
+    // 13. Data SOP (Registered Employee / User Login Required)
+    function isValidSopDocument(data) {
+      return data.keys().hasAll([
+               'nomorDokumen', 'judul', 'bidang', 'tanggalBerlaku',
+               'createdByUid', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'nomorDokumen', 'judul', 'bidang', 'tanggalBerlaku', 'ringkasan',
+               'fileUrl', 'fileName', 'createdByUid', 'createdAt', 'updatedAt'
+             ]) &&
+             data.nomorDokumen is string && data.nomorDokumen.size() > 0 && data.nomorDokumen.size() <= 100 &&
+             data.judul is string && data.judul.size() > 0 && data.judul.size() <= 300 &&
+             data.bidang is string && data.bidang.size() > 0 && data.bidang.size() <= 128 &&
+             data.tanggalBerlaku is string && data.tanggalBerlaku.size() > 0 && data.tanggalBerlaku.size() <= 32 &&
+             (!('ringkasan' in data) || data.ringkasan == null || (data.ringkasan is string && data.ringkasan.size() <= 1000)) &&
+             (!('fileUrl' in data) || data.fileUrl == null || (data.fileUrl is string && data.fileUrl.size() <= 1024)) &&
+             (!('fileName' in data) || data.fileName == null || (data.fileName is string && data.fileName.size() <= 256)) &&
+             data.createdByUid is string && data.createdByUid.size() > 0 && data.createdByUid.size() <= 128 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /sop_documents/{sopId} {
+      allow get: if isValidId(sopId) && isRegisteredUser();
+      allow list: if isRegisteredUser();
+      allow create: if isValidId(sopId) && isAdmin() &&
+                    isValidSopDocument(incoming()) &&
+                    incoming().createdByUid == request.auth.uid &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time;
+      allow update: if isValidId(sopId) && isAdmin() &&
+                    isValidSopDocument(incoming()) &&
+                    incoming().createdByUid == existing().createdByUid &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time &&
+                    incoming().diff(existing()).affectedKeys().hasOnly([
+                      'nomorDokumen', 'judul', 'bidang', 'tanggalBerlaku', 'ringkasan',
+                      'fileUrl', 'fileName', 'updatedAt'
+                    ]);
+      allow delete: if isValidId(sopId) && isAdmin();
+    }
+
+    // 14. Data Regulasi (Registered Employee / User Login Required)
+    function isValidRegulationDocument(data) {
+      return data.keys().hasAll([
+               'nomorDokumen', 'judul', 'penerbit', 'tanggalBerlaku',
+               'createdByUid', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'nomorDokumen', 'judul', 'penerbit', 'tanggalBerlaku', 'ringkasan',
+               'fileUrl', 'fileName', 'createdByUid', 'createdAt', 'updatedAt'
+             ]) &&
+             data.nomorDokumen is string && data.nomorDokumen.size() > 0 && data.nomorDokumen.size() <= 100 &&
+             data.judul is string && data.judul.size() > 0 && data.judul.size() <= 300 &&
+             data.penerbit is string && data.penerbit.size() > 0 && data.penerbit.size() <= 200 &&
+             data.tanggalBerlaku is string && data.tanggalBerlaku.size() > 0 && data.tanggalBerlaku.size() <= 32 &&
+             (!('ringkasan' in data) || data.ringkasan == null || (data.ringkasan is string && data.ringkasan.size() <= 1000)) &&
+             (!('fileUrl' in data) || data.fileUrl == null || (data.fileUrl is string && data.fileUrl.size() <= 1024)) &&
+             (!('fileName' in data) || data.fileName == null || (data.fileName is string && data.fileName.size() <= 256)) &&
+             data.createdByUid is string && data.createdByUid.size() > 0 && data.createdByUid.size() <= 128 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /regulations/{regulationId} {
+      allow get: if isValidId(regulationId) && isRegisteredUser();
+      allow list: if isRegisteredUser();
+      allow create: if isValidId(regulationId) && isAdmin() &&
+                    isValidRegulationDocument(incoming()) &&
+                    incoming().createdByUid == request.auth.uid &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time;
+      allow update: if isValidId(regulationId) && isAdmin() &&
+                    isValidRegulationDocument(incoming()) &&
+                    incoming().createdByUid == existing().createdByUid &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time &&
+                    incoming().diff(existing()).affectedKeys().hasOnly([
+                      'nomorDokumen', 'judul', 'penerbit', 'tanggalBerlaku', 'ringkasan',
+                      'fileUrl', 'fileName', 'updatedAt'
+                    ]);
+      allow delete: if isValidId(regulationId) && isAdmin();
+    }
+
+    // 15. Peraturan Direksi (Registered Employee / User Login Required)
+    function isValidBoardRegulationDocument(data) {
+      return data.keys().hasAll([
+               'nomorDokumen', 'judul', 'tanggalBerlaku',
+               'createdByUid', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'nomorDokumen', 'judul', 'tanggalBerlaku', 'ringkasan',
+               'fileUrl', 'fileName', 'createdByUid', 'createdAt', 'updatedAt'
+             ]) &&
+             data.nomorDokumen is string && data.nomorDokumen.size() > 0 && data.nomorDokumen.size() <= 100 &&
+             data.judul is string && data.judul.size() > 0 && data.judul.size() <= 300 &&
+             data.tanggalBerlaku is string && data.tanggalBerlaku.size() > 0 && data.tanggalBerlaku.size() <= 32 &&
+             (!('ringkasan' in data) || data.ringkasan == null || (data.ringkasan is string && data.ringkasan.size() <= 1000)) &&
+             (!('fileUrl' in data) || data.fileUrl == null || (data.fileUrl is string && data.fileUrl.size() <= 1024)) &&
+             (!('fileName' in data) || data.fileName == null || (data.fileName is string && data.fileName.size() <= 256)) &&
+             data.createdByUid is string && data.createdByUid.size() > 0 && data.createdByUid.size() <= 128 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /board_regulations/{perdirId} {
+      allow get: if isValidId(perdirId) && isRegisteredUser();
+      allow list: if isRegisteredUser();
+      allow create: if isValidId(perdirId) && isAdmin() &&
+                    isValidBoardRegulationDocument(incoming()) &&
+                    incoming().createdByUid == request.auth.uid &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time;
+      allow update: if isValidId(perdirId) && isAdmin() &&
+                    isValidBoardRegulationDocument(incoming()) &&
+                    incoming().createdByUid == existing().createdByUid &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time &&
+                    incoming().diff(existing()).affectedKeys().hasOnly([
+                      'nomorDokumen', 'judul', 'tanggalBerlaku', 'ringkasan',
+                      'fileUrl', 'fileName', 'updatedAt'
+                    ]);
+      allow delete: if isValidId(perdirId) && isAdmin();
+    }
+
+    // 16. Public Publications: Berita, Pengumuman, Agenda Kegiatan TJSL
+    function isValidPublicPublication(data) {
+      return data.keys().hasAll([
+               'kategori', 'judul', 'tanggalKegiatan', 'lokasi', 'ringkasan',
+               'konten', 'isPublished', 'createdByUid', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'kategori', 'judul', 'tanggalKegiatan', 'lokasi', 'ringkasan',
+               'konten', 'penanggungJawab', 'imageUrl', 'imageFileName',
+               'attachmentUrl', 'attachmentFileName', 'isPublished',
+               'createdByUid', 'createdByName', 'createdAt', 'updatedAt'
+             ]) &&
+             data.kategori in ['Berita', 'Pengumuman', 'Agenda Kegiatan TJSL'] &&
+             data.judul is string && data.judul.size() > 0 && data.judul.size() <= 300 &&
+             data.tanggalKegiatan is string && data.tanggalKegiatan.size() > 0 && data.tanggalKegiatan.size() <= 32 &&
+             data.lokasi is string && data.lokasi.size() > 0 && data.lokasi.size() <= 256 &&
+             data.ringkasan is string && data.ringkasan.size() > 0 && data.ringkasan.size() <= 600 &&
+             data.konten is string && data.konten.size() > 0 && data.konten.size() <= 5000 &&
+             (!('penanggungJawab' in data) || data.penanggungJawab == null || (data.penanggungJawab is string && data.penanggungJawab.size() <= 256)) &&
+             (!('imageUrl' in data) || data.imageUrl == null || (data.imageUrl is string && data.imageUrl.size() <= 1024)) &&
+             (!('imageFileName' in data) || data.imageFileName == null || (data.imageFileName is string && data.imageFileName.size() <= 256)) &&
+             (!('attachmentUrl' in data) || data.attachmentUrl == null || (data.attachmentUrl is string && data.attachmentUrl.size() <= 1024)) &&
+             (!('attachmentFileName' in data) || data.attachmentFileName == null || (data.attachmentFileName is string && data.attachmentFileName.size() <= 256)) &&
+             data.isPublished is bool &&
+             data.createdByUid is string && data.createdByUid.size() > 0 && data.createdByUid.size() <= 128 &&
+             (!('createdByName' in data) || data.createdByName == null || (data.createdByName is string && data.createdByName.size() <= 256)) &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /public_publications/{pubId} {
+      allow get: if isValidId(pubId) && (existing().isPublished == true || isViewer());
+      allow list: if resource.data.isPublished == true || isViewer();
+      allow create: if isValidId(pubId) && isAdmin() &&
+                    isValidPublicPublication(incoming()) &&
+                    incoming().createdByUid == request.auth.uid &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time;
+      allow update: if isValidId(pubId) && isAdmin() &&
+                    isValidPublicPublication(incoming()) &&
+                    incoming().createdByUid == existing().createdByUid &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time &&
+                    incoming().diff(existing()).affectedKeys().hasOnly([
+                      'kategori', 'judul', 'tanggalKegiatan', 'lokasi', 'ringkasan',
+                      'konten', 'penanggungJawab', 'imageUrl', 'imageFileName',
+                      'attachmentUrl', 'attachmentFileName', 'isPublished', 'updatedAt'
+                    ]);
+      allow delete: if isValidId(pubId) && isAdmin();
     }
   }
 }

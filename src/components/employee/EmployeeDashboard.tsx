@@ -2,22 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { Employee } from '../../types';
+import { Employee, KnowledgeSectionType } from '../../types';
 import EmployeeDetail from './EmployeeDetail';
-import EmployeeForm from './EmployeeForm'; // I will need to modify this to support editing
-import { 
-  User, 
-  Settings, 
-  BookOpen, 
+import EmployeeForm from './EmployeeForm';
+import {
+  Settings,
+  BookOpen,
   LogOut,
   LayoutDashboard,
-  ShieldCheck,
   AlertCircle,
   Loader2,
   Fingerprint,
-  Plane
+  Plane,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
@@ -25,12 +22,14 @@ import PlnNpLogo from '../common/PlnNpLogo';
 import ThemeToggle from '../common/ThemeToggle';
 import BiometricSettingsCard from '../common/BiometricSettingsCard';
 import SppdManagement from '../sppd/SppdManagement';
+import KnowledgeGovernanceView from '../knowledge/KnowledgeGovernanceView';
 
 const EmployeeDashboard: React.FC = () => {
   const { profile } = useAuth();
   const [employeeData, setEmployeeData] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'biometric' | 'sppd'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'biometric' | 'sppd' | 'knowledge'>('overview');
+  const [knowledgeSection, setKnowledgeSection] = useState<KnowledgeSectionType>('knowledge-sharing');
 
   useEffect(() => {
     const fetchEmployee = async () => {
@@ -172,6 +171,19 @@ const EmployeeDashboard: React.FC = () => {
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab('knowledge')}
+              className={cn(
+                'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all',
+                activeTab === 'knowledge'
+                  ? 'bg-[#0072BC] text-white shadow-sm'
+                  : 'bg-white dark:bg-[#0E1A2E] text-slate-500 dark:text-slate-300 hover:text-[#173B65] border border-slate-200/80 dark:border-slate-800'
+              )}
+            >
+              <BookOpen size={18} />
+              Knowledge &amp; Regulasi
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab('edit')}
               className={cn(
                 'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all',
@@ -211,6 +223,15 @@ const EmployeeDashboard: React.FC = () => {
               <EmployeeDetail employee={employeeData} onBack={() => {}} />
             ) : activeTab === 'sppd' ? (
               <SppdManagement defaultEmployee={employeeData} canApprove={false} compactTitle />
+            ) : activeTab === 'knowledge' ? (
+              <KnowledgeGovernanceView
+                section={knowledgeSection}
+                onChangeSection={setKnowledgeSection}
+                employees={[employeeData]}
+                canManage={false}
+                showSectionSwitcher={true}
+                compactHeader={true}
+              />
             ) : activeTab === 'biometric' ? (
               <BiometricSettingsCard />
             ) : (

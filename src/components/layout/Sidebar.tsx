@@ -14,6 +14,12 @@ import {
   History,
   Plane,
   Megaphone,
+  BookOpen,
+  Lightbulb,
+  ClipboardList,
+  Scale,
+  Landmark,
+  Newspaper,
   X,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -58,6 +64,23 @@ const Sidebar: React.FC<SidebarProps> = ({
         { id: 'sppd', label: 'Pengajuan SPPD', icon: Plane },
         { id: 'certifications', label: 'Data Sertifikasi', icon: Award },
         { id: 'org-structure', label: 'Struktur Organisasi', icon: ShieldCheck },
+      ],
+    },
+    {
+      group: 'Knowledge & Regulasi',
+      items: [
+        { id: 'knowledge-sharing', label: 'Knowledge Sharing Forum', icon: BookOpen },
+        { id: 'cop', label: 'Community Of Practice', icon: Users },
+        { id: 'inovasi', label: 'Inovasi', icon: Lightbulb },
+        { id: 'sop', label: 'Data SOP', icon: ClipboardList },
+        { id: 'regulasi', label: 'Data Regulasi', icon: Scale },
+        { id: 'peraturan-direksi', label: 'Peraturan Direksi', icon: Landmark },
+      ],
+    },
+    {
+      group: 'Publikasi Landing Page',
+      items: [
+        { id: 'publications', label: 'Berita, Pengumuman & TJSL', icon: Newspaper },
       ],
     },
     {
