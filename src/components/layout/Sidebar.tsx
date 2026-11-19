@@ -220,7 +220,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* Desktop Fixed Sidebar */}
       <aside
         className={cn(
-          'hidden lg:block h-full shrink-0 transition-all duration-300 z-30',
+          'hidden lg:block fixed inset-y-0 left-0 z-40 transition-all duration-300',
           isCollapsed ? 'w-20' : 'w-64'
         )}
       >

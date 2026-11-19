@@ -553,7 +553,6 @@ const UnitManagement: React.FC = () => {
             ],
     });
     setIsAdding(true);
-    document.getElementById('dashboard-scroll-container')?.scrollTo({ top: 0, behavior: 'smooth' });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

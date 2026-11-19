@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Login from './components/auth/Login';
@@ -63,7 +63,6 @@ const MainApp: React.FC = () => {
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [hasViewedNotifications, setHasViewedNotifications] = useState(false);
   const [mapsQuotaExceeded, setMapsQuotaExceeded] = useState(false);
-  const mainScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const onQuotaExceeded = () => setMapsQuotaExceeded(true);
@@ -124,7 +123,7 @@ const MainApp: React.FC = () => {
   }, [profile?.role, employeesLoading, employees]);
 
   useEffect(() => {
-    mainScrollRef.current?.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0 });
   }, [activeTab, selectedEmployee?.id, editingEmployee?.id]);
 
   const openPublicVerification = (empId: string) => {
@@ -309,9 +308,7 @@ const MainApp: React.FC = () => {
     : TAB_TITLES[activeTab] || activeTab.replace('-', ' ');
 
   return (
-    <div className="h-dvh flex flex-col overflow-hidden bg-[#F4F8FB] dark:bg-[#071120] transition-colors duration-200">
-      {quotaBanner}
-      <div className="flex-1 min-h-0 flex font-sans overflow-hidden">
+    <div className="min-h-screen bg-[#F4F8FB] dark:bg-[#071120] font-sans transition-colors duration-200">
       <Sidebar
         activeTab={activeTab}
         setActiveTab={(tab) => {
@@ -328,10 +325,13 @@ const MainApp: React.FC = () => {
         expiringCertCount={expiringCerts30Days.length}
       />
 
-      <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
-        {/* Fixed Enterprise Topbar */}
-        <header className="shrink-0 z-30 bg-white/95 dark:bg-[#0B172A]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-4 sm:px-8 py-3.5">
-          <div className="flex items-center justify-between gap-4">
+      {/* Fixed Enterprise Topbar */}
+      <header
+        className={`fixed top-0 right-0 left-0 z-30 h-16 bg-white/95 dark:bg-[#0B172A]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-4 sm:px-8 flex items-center transition-all duration-300 ${
+          isSidebarCollapsed ? 'lg:left-20' : 'lg:left-64'
+        }`}
+      >
+        <div className="w-full flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <button
                 type="button"
@@ -575,18 +575,18 @@ const MainApp: React.FC = () => {
                 </AnimatePresence>
               </div>
             </div>
-          </div>
-        </header>
+        </div>
+      </header>
 
-        {/* Main Content Workspace (Independent Scroll Area) */}
-        <div
-          id="dashboard-scroll-container"
-          ref={mainScrollRef}
-          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
-        >
-          <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
-            {renderContent()}
-          </div>
+      {/* Main Content Workspace */}
+      <main
+        className={`min-h-screen pt-16 overflow-x-clip transition-all duration-300 ${
+          isSidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'
+        }`}
+      >
+        {quotaBanner}
+        <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
+          {renderContent()}
         </div>
       </main>
 
@@ -606,7 +606,6 @@ const MainApp: React.FC = () => {
           setSelectedEmployee(emp);
         }}
       />
-      </div>
     </div>
   );
 };
