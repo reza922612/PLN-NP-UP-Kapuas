@@ -14,6 +14,19 @@ export interface UserProfile {
   createdAt: any;
 }
 
+export type FamilyRelationship = 'Istri/Suami' | 'Anak Kandung';
+export type HealthCoverageStatus = 'Dijamin' | 'Tidak Dijamin';
+
+export interface FamilyMember {
+  id?: string;
+  nama: string;
+  hubunganKeluarga: FamilyRelationship;
+  tanggalLahir: string;
+  jenisKelamin: 'Laki-laki' | 'Perempuan';
+  jaminanKesehatan: HealthCoverageStatus;
+  noKPS?: string;
+}
+
 export interface Employee {
   id?: string;
   fullName: string;
@@ -44,6 +57,7 @@ export interface Employee {
   perusahaan: CompanyName;
   photoUrl?: string;
   dossierUrl?: string;
+  familyMembers?: FamilyMember[];
   // History collections can be separate but for the form we'll handle them
   trainings?: Training[];
   certifications?: Certification[];

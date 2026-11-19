@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Briefcase,
   BellRing,
+  Users,
 } from 'lucide-react';
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -41,7 +42,7 @@ interface EmployeeDetailProps {
   onUpdateEmployee?: (id: string, data: Partial<Employee>) => Promise<void>;
 }
 
-type DetailTab = 'general' | 'legal' | 'competency' | 'documents';
+type DetailTab = 'general' | 'legal' | 'family' | 'competency' | 'documents';
 
 const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
   employee,
@@ -133,6 +134,7 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
   const tabs: { id: DetailTab; label: string; icon: React.ElementType }[] = [
     { id: 'general', label: 'Informasi Umum', icon: Briefcase },
     { id: 'legal', label: 'Pendidikan & Legal', icon: ShieldCheck },
+    { id: 'family', label: `Data Keluarga (${employee.familyMembers?.length || 0})`, icon: Users },
     { id: 'competency', label: 'Pelatihan & Sertifikasi', icon: Award },
     { id: 'documents', label: 'Arsip Scan & Dokumen', icon: FileText },
   ];
@@ -466,6 +468,63 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
                     </div>
                   </div>
                 </>
+              )}
+
+              {activeSection === 'family' && (
+                <div className="space-y-4">
+                  <h4 className="text-xs font-extrabold text-[#0072BC] dark:text-[#72C8F1] uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+                    <Users size={14} /> Data Keluarga &amp; Jaminan Kesehatan ({employee.familyMembers?.length || 0})
+                  </h4>
+                  {employee.familyMembers && employee.familyMembers.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {employee.familyMembers.map((member, idx) => (
+                        <div
+                          key={member.id || idx}
+                          className="p-4 bg-[#F4F8FB] dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 space-y-3"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-extrabold text-[#173B65] dark:text-slate-100 truncate">
+                                {member.nama}
+                              </p>
+                              <p className="text-[11px] font-bold text-[#0072BC] dark:text-[#72C8F1] mt-0.5">
+                                {member.hubunganKeluarga} · {member.jenisKelamin}
+                              </p>
+                            </div>
+                            <span
+                              className={cn(
+                                'px-2 py-0.5 rounded-md text-[10px] font-extrabold shrink-0',
+                                member.jaminanKesehatan === 'Dijamin'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400'
+                                  : 'bg-slate-200/80 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                              )}
+                            >
+                              {member.jaminanKesehatan}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200/70 dark:border-slate-700/70 text-xs">
+                            <div>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase">Tanggal Lahir</p>
+                              <p className="font-semibold text-[#173B65] dark:text-slate-200 mt-0.5">
+                                {formatDate(member.tanggalLahir)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase">Nomor KPS</p>
+                              <p className="font-mono font-semibold text-[#173B65] dark:text-slate-200 mt-0.5 truncate">
+                                {member.noKPS || '-'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic py-6 text-center">
+                      Belum ada data anggota keluarga yang tercatat untuk pegawai ini.
+                    </p>
+                  )}
+                </div>
               )}
 
               {activeSection === 'competency' && (

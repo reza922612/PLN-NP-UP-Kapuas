@@ -135,7 +135,20 @@ service cloud.firestore {
              data.unitPelaksana is string &&
              data.perusahaan is string &&
              data.status in ['Pegawai Organik', 'Pegawai Tugas Khusus', 'Tenaga Alih Daya'] &&
-             (!('agama' in data) || (data.agama is string && data.agama.size() <= 50));
+             (!('agama' in data) || (data.agama is string && data.agama.size() <= 50)) &&
+             (!('familyMembers' in data) || (
+               data.familyMembers is list &&
+               data.familyMembers.size() <= 30 &&
+               (data.familyMembers.size() == 0 || (
+                 data.familyMembers[0] is map &&
+                 data.familyMembers[0].nama is string && data.familyMembers[0].nama.size() > 0 && data.familyMembers[0].nama.size() <= 256 &&
+                 data.familyMembers[0].hubunganKeluarga in ['Istri/Suami', 'Anak Kandung'] &&
+                 data.familyMembers[0].tanggalLahir is string && data.familyMembers[0].tanggalLahir.size() <= 32 &&
+                 data.familyMembers[0].jenisKelamin in ['Laki-laki', 'Perempuan'] &&
+                 data.familyMembers[0].jaminanKesehatan in ['Dijamin', 'Tidak Dijamin'] &&
+                 (!('noKPS' in data.familyMembers[0]) || (data.familyMembers[0].noKPS is string && data.familyMembers[0].noKPS.size() <= 128))
+               ))
+             ));
     }
 
     match /employees/{employeeId} {

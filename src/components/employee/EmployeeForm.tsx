@@ -8,6 +8,7 @@ import { Employee } from '../../types';
 import {
   User,
   UserPlus,
+  Users,
   Award,
   Plus,
   Loader2,
@@ -66,6 +67,15 @@ const certificationSchema = z.object({
   certificateUrl: optionalFile50MbSchema,
 });
 
+const familyMemberSchema = z.object({
+  nama: z.string().min(1, 'Nama anggota keluarga wajib diisi'),
+  hubunganKeluarga: z.enum(['Istri/Suami', 'Anak Kandung']),
+  tanggalLahir: z.string().min(1, 'Tanggal lahir wajib diisi'),
+  jenisKelamin: z.enum(['Laki-laki', 'Perempuan']),
+  jaminanKesehatan: z.enum(['Dijamin', 'Tidak Dijamin']),
+  noKPS: z.string().optional(),
+});
+
 const employeeSchema = z.object({
   fullName: z.string().min(1, 'Nama lengkap wajib diisi'),
   nip: z.string().min(1, 'NIP wajib diisi'),
@@ -100,6 +110,7 @@ const employeeSchema = z.object({
   ]),
   photoUrl: optionalFile50MbSchema,
   dossierUrl: optionalFile50MbSchema,
+  familyMembers: z.array(familyMemberSchema),
   trainings: z.array(trainingSchema),
   certifications: z.array(certificationSchema),
 });
@@ -343,6 +354,14 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
     defaultValues: initialData
       ? ({
           ...initialData,
+          familyMembers: (initialData.familyMembers || []).map((f) => ({
+            nama: f.nama || '',
+            hubunganKeluarga: f.hubunganKeluarga || 'Istri/Suami',
+            tanggalLahir: f.tanggalLahir || '',
+            jenisKelamin: f.jenisKelamin || 'Perempuan',
+            jaminanKesehatan: f.jaminanKesehatan || 'Dijamin',
+            noKPS: f.noKPS || '',
+          })),
           trainings: (initialData.trainings || []).map((t) => ({
             ...t,
             certificateUrl: t.certificateUrl ? [t.certificateUrl] : [],
@@ -358,10 +377,17 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
           jenisKelamin: 'Laki-laki',
           status: 'Pegawai Organik',
           perusahaan: 'PT PLN Nusantara Power',
+          familyMembers: [],
           trainings: [],
           certifications: [],
         },
   });
+
+  const {
+    fields: familyFields,
+    append: appendFamily,
+    remove: removeFamily,
+  } = useFieldArray({ control, name: 'familyMembers' });
 
   const {
     fields: trainingFields,
@@ -633,6 +659,14 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
         ...data,
         photoUrl: resolvedPhotoUrl || null,
         dossierUrl: resolvedDossierUrl || null,
+        familyMembers: (data.familyMembers || []).map((m) => ({
+          nama: m.nama.trim(),
+          hubunganKeluarga: m.hubunganKeluarga,
+          tanggalLahir: m.tanggalLahir,
+          jenisKelamin: m.jenisKelamin,
+          jaminanKesehatan: m.jaminanKesehatan,
+          noKPS: m.noKPS?.trim() || '',
+        })),
         trainings: resolvedTrainings.map((t) => ({
           ...t,
           certificateUrl: t.certificateUrl || null,
@@ -926,7 +960,111 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
         </SectionCard>
 
         <SectionCard
-          title="4. Riwayat Pelatihan"
+          title="4. Data Keluarga"
+          subtitle="Daftar anggota keluarga inti dan informasi jaminan kesehatan (KPS)"
+          icon={Users}
+          action={
+            <button
+              type="button"
+              onClick={() =>
+                appendFamily({
+                  nama: '',
+                  hubunganKeluarga: 'Istri/Suami',
+                  tanggalLahir: '',
+                  jenisKelamin: 'Perempuan',
+                  jaminanKesehatan: 'Dijamin',
+                  noKPS: '',
+                })
+              }
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#EAF6FC] dark:bg-[#0072BC]/25 text-[#0072BC] dark:text-[#72C8F1] rounded-xl text-xs font-bold hover:bg-[#0072BC] hover:text-white transition-colors"
+            >
+              <Plus size={14} /> Tambah Anggota Keluarga
+            </button>
+          }
+        >
+          <div className="space-y-3">
+            {familyFields.map((field, index) => (
+              <div
+                key={field.id}
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 p-4 bg-[#F4F8FB] dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-800"
+              >
+                <div className="lg:col-span-2">
+                  <InputField
+                    label="Nama"
+                    name={`familyMembers.${index}.nama`}
+                    register={register}
+                    placeholder="Nama lengkap anggota keluarga"
+                    error={errors.familyMembers?.[index]?.nama}
+                  />
+                </div>
+                <InputField
+                  label="Hubungan Keluarga"
+                  name={`familyMembers.${index}.hubunganKeluarga`}
+                  register={register}
+                  error={errors.familyMembers?.[index]?.hubunganKeluarga}
+                  options={[
+                    { label: 'Istri/Suami', value: 'Istri/Suami' },
+                    { label: 'Anak Kandung', value: 'Anak Kandung' },
+                  ]}
+                />
+                <InputField
+                  label="Tanggal Lahir"
+                  name={`familyMembers.${index}.tanggalLahir`}
+                  register={register}
+                  type="date"
+                  error={errors.familyMembers?.[index]?.tanggalLahir}
+                />
+                <InputField
+                  label="Jenis Kelamin"
+                  name={`familyMembers.${index}.jenisKelamin`}
+                  register={register}
+                  error={errors.familyMembers?.[index]?.jenisKelamin}
+                  options={[
+                    { label: 'Laki-laki', value: 'Laki-laki' },
+                    { label: 'Perempuan', value: 'Perempuan' },
+                  ]}
+                />
+                <InputField
+                  label="Jaminan Kesehatan"
+                  name={`familyMembers.${index}.jaminanKesehatan`}
+                  register={register}
+                  error={errors.familyMembers?.[index]?.jaminanKesehatan}
+                  options={[
+                    { label: 'Dijamin', value: 'Dijamin' },
+                    { label: 'Tidak Dijamin', value: 'Tidak Dijamin' },
+                  ]}
+                />
+                <div className="md:col-span-2 lg:col-span-6 flex items-end gap-2">
+                  <div className="flex-1 min-w-0">
+                    <InputField
+                      label="Nomor Kartu Pegawai Sehat (KPS)"
+                      name={`familyMembers.${index}.noKPS`}
+                      register={register}
+                      placeholder="Masukkan nomor kartu KPS (opsional jika Tidak Dijamin)"
+                      error={errors.familyMembers?.[index]?.noKPS}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeFamily(index)}
+                    className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors mb-0.5"
+                    title="Hapus Anggota Keluarga"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {familyFields.length === 0 && (
+              <p className="text-center py-6 text-xs font-medium text-slate-400">
+                Belum ada data keluarga. Klik &ldquo;Tambah Anggota Keluarga&rdquo; untuk mengisi data Istri/Suami atau Anak Kandung.
+              </p>
+            )}
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="5. Riwayat Pelatihan"
           subtitle="Daftar diklat dan pelatihan pengembangan kompetensi"
           icon={BookOpen}
           action={
@@ -997,7 +1135,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
         </SectionCard>
 
         <SectionCard
-          title="5. Riwayat Sertifikasi Kompetensi"
+          title="6. Riwayat Sertifikasi Kompetensi"
           subtitle="Sertifikat keahlian resmi beserta masa berlakunya"
           icon={Award}
           action={

@@ -49,6 +49,7 @@
         "perusahaan": { "type": "string", "enum": ["PT PLN Nusantara Power", "PT PLN (Persero)", "PT PLN Paguntaka Cahaya Nusantara", "PT Mitra Karya Prima"] },
         "photoUrl": { "type": "string" },
         "dossierUrl": { "type": "string" },
+        "familyMembers": { "type": "array", "description": "Daftar anggota keluarga pegawai" },
         "scannedDocuments": { "type": "array" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
