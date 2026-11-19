@@ -142,7 +142,7 @@ const EmployeeDashboard: React.FC = () => {
       <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Sidebar Nav */}
-          <aside className="lg:w-64 space-y-2.5 shrink-0">
+          <aside className="lg:w-64 space-y-2.5 shrink-0 lg:sticky lg:top-24 lg:self-start">
             <button
               type="button"
               onClick={() => setActiveTab('overview')}

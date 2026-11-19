@@ -306,7 +306,7 @@ const MainApp: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F4F8FB] dark:bg-[#071120] transition-colors duration-200">
       {quotaBanner}
-      <div className="flex min-h-screen font-sans overflow-x-hidden">
+      <div className="flex min-h-screen font-sans overflow-x-clip">
       <Sidebar
         activeTab={activeTab}
         setActiveTab={(tab) => {

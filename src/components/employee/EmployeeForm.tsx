@@ -28,17 +28,44 @@ import { differenceInYears } from 'date-fns';
 import imageCompression from 'browser-image-compression';
 import { PageHeader, SectionCard } from '../common/DashboardUI';
 
+const MAX_UPLOAD_SIZE_MB = 50;
+const MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024;
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+};
+
+const isWithinMaxFileSize = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') return true;
+  const files = value as ArrayLike<unknown>;
+  const firstFile = files[0];
+  if (firstFile instanceof File) {
+    return firstFile.size <= MAX_UPLOAD_SIZE_BYTES;
+  }
+  return true;
+};
+
+const optionalFile50MbSchema = z
+  .any()
+  .optional()
+  .refine(isWithinMaxFileSize, {
+    message: `Ukuran file melebihi batas maksimal ${MAX_UPLOAD_SIZE_MB} MB`,
+  });
+
 const trainingSchema = z.object({
   namaPelatihan: z.string().min(1, 'Nama pelatihan wajib diisi'),
   tanggalPelaksanaan: z.string().min(1, 'Tanggal wajib diisi'),
-  certificateUrl: z.any().optional(),
+  certificateUrl: optionalFile50MbSchema,
 });
 
 const certificationSchema = z.object({
   namaSertifikasi: z.string().min(1, 'Nama sertifikasi wajib diisi'),
   tanggalPelaksanaan: z.string().min(1, 'Tanggal wajib diisi'),
   masaBerlaku: z.string().min(1, 'Masa berlaku wajib diisi'),
-  certificateUrl: z.any().optional(),
+  certificateUrl: optionalFile50MbSchema,
 });
 
 const employeeSchema = z.object({
@@ -73,8 +100,8 @@ const employeeSchema = z.object({
     'PT PLN Paguntaka Cahaya Nusantara',
     'PT Mitra Karya Prima',
   ]),
-  photoUrl: z.any().optional(),
-  dossierUrl: z.any().optional(),
+  photoUrl: optionalFile50MbSchema,
+  dossierUrl: optionalFile50MbSchema,
   trainings: z.array(trainingSchema),
   certifications: z.array(certificationSchema),
 });
@@ -106,6 +133,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
     control,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
@@ -172,15 +200,26 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
     path: string,
     label: string
   ): Promise<string> => {
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      throw new Error(
+        `Ukuran ${label} (${formatFileSize(file.size)}) melebihi batas maksimal ${MAX_UPLOAD_SIZE_MB} MB.`
+      );
+    }
+
     let fileToUpload = file;
-    if (file.type.startsWith('image/')) {
+    // Compress moderately sized images to keep uploads snappy while preserving large/high-res uploads up to 50 MB
+    if (
+      file.type.startsWith('image/') &&
+      file.size > 1.5 * 1024 * 1024 &&
+      file.size <= 15 * 1024 * 1024
+    ) {
       try {
-        setUploadProgress(`Mengompresi ${label}...`);
+        setUploadProgress(`Mengoptimalkan ${label}...`);
         fileToUpload = await imageCompression(file, {
-          maxSizeMB: 0.3,
-          maxWidthOrHeight: 800,
+          maxSizeMB: 2,
+          maxWidthOrHeight: 1920,
           useWebWorker: true,
-          initialQuality: 0.6,
+          initialQuality: 0.85,
         });
       } catch (err) {
         console.error('Compression failed, using original:', err);
@@ -195,7 +234,9 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
         'state_changed',
         (snapshot) => {
           const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-          setUploadProgress(`Mengunggah ${label} (${progress}%)...`);
+          setUploadProgress(
+            `Mengunggah ${label} (${progress}% · ${formatFileSize(fileToUpload.size)})...`
+          );
         },
         (error) => reject(error),
         async () => {
@@ -293,7 +334,11 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
       }, 900);
     } catch (err: any) {
       console.error('Submission Error:', err);
-      setFormError('Gagal menyimpan data. Pastikan koneksi internet stabil dan seluruh data valid.');
+      setFormError(
+        err?.message && typeof err.message === 'string' && err.message.includes('MB')
+          ? err.message
+          : 'Gagal menyimpan data. Pastikan koneksi internet stabil, ukuran file maksimal 50 MB, dan seluruh data valid.'
+      );
     } finally {
       setUploadProgress(null);
     }
@@ -354,36 +399,52 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
     </div>
   );
 
-  const FileUploadField = ({ label, name, error, accept, icon: Icon }: any) => (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-0.5">
-        {label}
-      </label>
-      <div className="relative">
-        <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0072BC] dark:text-[#72C8F1]" />
-        <input
-          type="file"
-          accept={accept}
-          {...register(name)}
-          className={cn(
-            'w-full pl-10 pr-3 py-2.5 bg-[#F4F8FB] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-[#0072BC] outline-none transition-all font-semibold text-slate-600 dark:text-slate-300 file:mr-3 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-[#EAF6FC] dark:file:bg-[#0072BC]/25 file:text-[#0072BC] dark:file:text-[#72C8F1] cursor-pointer',
-            error && 'border-red-400'
-          )}
-        />
+  const FileUploadField = ({ label, name, error, accept, icon: Icon, helper }: any) => {
+    const currentValue = watch(name);
+    const selectedFile =
+      currentValue && typeof currentValue === 'object' && currentValue[0] instanceof File
+        ? (currentValue[0] as File)
+        : null;
+
+    return (
+      <div className="flex flex-col gap-1.5">
+        <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-0.5">
+          {label}
+        </label>
+        <div className="relative">
+          <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#0072BC] dark:text-[#72C8F1]" />
+          <input
+            type="file"
+            accept={accept}
+            {...register(name)}
+            className={cn(
+              'w-full pl-10 pr-3 py-2.5 bg-[#F4F8FB] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-[#0072BC] outline-none transition-all font-semibold text-slate-600 dark:text-slate-300 file:mr-3 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-[#EAF6FC] dark:file:bg-[#0072BC]/25 file:text-[#0072BC] dark:file:text-[#72C8F1] cursor-pointer',
+              error && 'border-red-400'
+            )}
+          />
+        </div>
+        {selectedFile && !error && (
+          <span className="text-[10px] text-[#0072BC] dark:text-[#72C8F1] font-semibold px-0.5 truncate">
+            Terpilih: {selectedFile.name} ({formatFileSize(selectedFile.size)})
+          </span>
+        )}
+        {helper && !error && (
+          <span className="text-[10px] text-slate-400 font-medium px-0.5">{helper}</span>
+        )}
+        {error && (
+          <span className="text-[11px] text-red-500 dark:text-red-400 font-semibold px-0.5">
+            {error.message}
+          </span>
+        )}
       </div>
-      {error && (
-        <span className="text-[11px] text-red-500 dark:text-red-400 font-semibold px-0.5">
-          {error.message}
-        </span>
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16">
       <PageHeader
         title={isEditing ? `Edit Data Pegawai · ${initialData?.fullName}` : 'Input Data Pegawai Baru'}
-        subtitle="Formulir terstruktur dengan validasi real-time dan kompresi unggah otomatis"
+        subtitle="Formulir terstruktur dengan validasi real-time dan unggahan berkas hingga 50 MB"
         icon={isEditing ? User : UserPlus}
         badge={isEditing ? `NIP ${initialData?.nip}` : 'Registrasi SDM'}
         actions={
@@ -571,8 +632,22 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
               <InputField label="Nomor NPWP" name="noNPWP" error={errors.noNPWP} />
               <InputField label="BPJS Kesehatan" name="noBPJSKesehatan" error={errors.noBPJSKesehatan} />
               <InputField label="BPJS Ketenagakerjaan" name="noBPJSKetenagakerjaan" error={errors.noBPJSKetenagakerjaan} />
-              <FileUploadField label="Foto Pegawai" name="photoUrl" error={errors.photoUrl} accept="image/*" icon={Camera} />
-              <FileUploadField label="Berkas Dossier (PDF/DOC)" name="dossierUrl" error={errors.dossierUrl} accept=".pdf,.doc,.docx" icon={FileText} />
+              <FileUploadField
+                label="Foto Pegawai"
+                name="photoUrl"
+                error={errors.photoUrl}
+                accept="image/*"
+                icon={Camera}
+                helper="Maksimal 50 MB · Format gambar (JPG, PNG, WEBP)"
+              />
+              <FileUploadField
+                label="Berkas Dossier (PDF/DOC)"
+                name="dossierUrl"
+                error={errors.dossierUrl}
+                accept=".pdf,.doc,.docx"
+                icon={FileText}
+                helper="Maksimal 50 MB · Format PDF, DOC, DOCX"
+              />
             </div>
           </div>
         </SectionCard>
@@ -618,6 +693,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                       error={errors.trainings?.[index]?.certificateUrl}
                       accept=".pdf,.jpg,.jpeg,.png"
                       icon={Upload}
+                      helper="Maks. 50 MB · PDF, JPG, PNG"
                     />
                   </div>
                   <button
@@ -688,6 +764,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                       error={errors.certifications?.[index]?.certificateUrl}
                       accept=".pdf,.jpg,.jpeg,.png"
                       icon={Upload}
+                      helper="Maks. 50 MB · PDF, JPG, PNG"
                     />
                   </div>
                   <button
