@@ -99,9 +99,9 @@ const EmployeeDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F8FB] dark:bg-[#071120] flex flex-col transition-colors duration-200">
+    <div className="h-dvh bg-[#F4F8FB] dark:bg-[#071120] flex flex-col overflow-hidden transition-colors duration-200">
       {/* Header */}
-      <header className="bg-white/90 dark:bg-[#0B172A]/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 sticky top-0 z-30">
+      <header className="bg-white/95 dark:bg-[#0B172A]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 shrink-0 z-30">
         <div className="max-w-7xl mx-auto px-6 h-18 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <PlnNpLogo className="h-8 w-auto hidden sm:block" />
@@ -139,10 +139,11 @@ const EmployeeDashboard: React.FC = () => {
         </div>
       </header>
 
-      <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-8">
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar Nav */}
-          <aside className="lg:w-64 space-y-2.5 shrink-0 lg:sticky lg:top-24 lg:self-start">
+      <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
+        <div className="max-w-7xl mx-auto w-full lg:h-full px-4 sm:px-6 py-6 lg:py-8">
+          <div className="flex flex-col lg:flex-row gap-8 lg:h-full">
+            {/* Sidebar Nav */}
+            <aside className="lg:w-64 space-y-2.5 shrink-0 lg:overflow-y-auto">
             <button
               type="button"
               onClick={() => setActiveTab('overview')}
@@ -205,7 +206,10 @@ const EmployeeDashboard: React.FC = () => {
           </aside>
 
           {/* Content Area */}
-          <main className="flex-1 min-w-0">
+          <main
+            id="dashboard-scroll-container"
+            className="flex-1 min-w-0 lg:h-full lg:overflow-y-auto lg:pr-1"
+          >
             {activeTab === 'overview' ? (
               <EmployeeDetail employee={employeeData} onBack={() => {}} />
             ) : activeTab === 'sppd' ? (
@@ -221,6 +225,7 @@ const EmployeeDashboard: React.FC = () => {
               />
             )}
           </main>
+        </div>
         </div>
       </div>
     </div>

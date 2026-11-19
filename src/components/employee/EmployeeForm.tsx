@@ -327,6 +327,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
 
       setIsSuccess(true);
       if (!initialData) reset();
+      document.getElementById('dashboard-scroll-container')?.scrollTo({ top: 0, behavior: 'smooth' });
       window.scrollTo({ top: 0, behavior: 'smooth' });
       setTimeout(() => {
         setIsSuccess(false);
@@ -346,6 +347,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
 
   const onInvalid = () => {
     setFormError('Terdapat kolom wajib yang belum diisi atau formatnya tidak sesuai. Periksa sorotan merah di bawah.');
+    document.getElementById('dashboard-scroll-container')?.scrollTo({ top: 0, behavior: 'smooth' });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

@@ -217,10 +217,10 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Desktop Sticky Sidebar */}
+      {/* Desktop Fixed Sidebar */}
       <aside
         className={cn(
-          'hidden lg:block h-screen sticky top-0 self-start shrink-0 transition-all duration-300 z-30',
+          'hidden lg:block h-full shrink-0 transition-all duration-300 z-30',
           isCollapsed ? 'w-20' : 'w-64'
         )}
       >

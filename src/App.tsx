@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Login from './components/auth/Login';
@@ -63,6 +63,7 @@ const MainApp: React.FC = () => {
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [hasViewedNotifications, setHasViewedNotifications] = useState(false);
   const [mapsQuotaExceeded, setMapsQuotaExceeded] = useState(false);
+  const mainScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const onQuotaExceeded = () => setMapsQuotaExceeded(true);
@@ -121,6 +122,10 @@ const MainApp: React.FC = () => {
       syncPublicStats(employees);
     }
   }, [profile?.role, employeesLoading, employees]);
+
+  useEffect(() => {
+    mainScrollRef.current?.scrollTo({ top: 0 });
+  }, [activeTab, selectedEmployee?.id, editingEmployee?.id]);
 
   const openPublicVerification = (empId: string) => {
     const url = new URL(window.location.href);
@@ -304,9 +309,9 @@ const MainApp: React.FC = () => {
     : TAB_TITLES[activeTab] || activeTab.replace('-', ' ');
 
   return (
-    <div className="min-h-screen bg-[#F4F8FB] dark:bg-[#071120] transition-colors duration-200">
+    <div className="h-dvh flex flex-col overflow-hidden bg-[#F4F8FB] dark:bg-[#071120] transition-colors duration-200">
       {quotaBanner}
-      <div className="flex min-h-screen font-sans overflow-x-clip">
+      <div className="flex-1 min-h-0 flex font-sans overflow-hidden">
       <Sidebar
         activeTab={activeTab}
         setActiveTab={(tab) => {
@@ -323,9 +328,9 @@ const MainApp: React.FC = () => {
         expiringCertCount={expiringCerts30Days.length}
       />
 
-      <main className="flex-1 min-w-0 flex flex-col min-h-screen">
-        {/* Sticky Enterprise Topbar */}
-        <header className="sticky top-0 z-20 bg-white/90 dark:bg-[#0B172A]/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-4 sm:px-8 py-3.5">
+      <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+        {/* Fixed Enterprise Topbar */}
+        <header className="shrink-0 z-30 bg-white/95 dark:bg-[#0B172A]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 px-4 sm:px-8 py-3.5">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <button
@@ -573,9 +578,15 @@ const MainApp: React.FC = () => {
           </div>
         </header>
 
-        {/* Main Content Workspace */}
-        <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
-          {renderContent()}
+        {/* Main Content Workspace (Independent Scroll Area) */}
+        <div
+          id="dashboard-scroll-container"
+          ref={mainScrollRef}
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
+        >
+          <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
+            {renderContent()}
+          </div>
         </div>
       </main>
 
