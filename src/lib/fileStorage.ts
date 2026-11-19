@@ -473,7 +473,7 @@ export const resolveStoredFile = (url: string): Promise<ResolvedStoredFile> => {
     const mimeType = meta.mimeType || 'application/octet-stream';
     const fileName = meta.fileName || 'dokumen';
 
-    if (meta.inlineData) {
+    if (typeof meta.inlineData === 'string') {
       const bytes = base64ToUint8Array(meta.inlineData);
       const blob = new Blob([bytes.buffer as ArrayBuffer], { type: mimeType });
       return {
