@@ -36,6 +36,7 @@ import {
 import { SaveSppdInput } from '../../hooks/useSppd';
 import { cn } from '../../lib/utils';
 import { ConfirmDialog } from '../common/DashboardUI';
+import { StoredImage, StoredFileFrame } from '../common/StoredFileUI';
 
 interface SppdFormModalProps {
   open: boolean;
@@ -1130,7 +1131,7 @@ const SppdFormModal: React.FC<SppdFormModalProps> = ({
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         {isImg ? (
-                          <img
+                          <StoredImage
                             src={att.url}
                             alt={att.name}
                             className="w-10 h-10 rounded-lg object-cover border border-slate-200 dark:border-slate-700 shrink-0"
@@ -1319,17 +1320,13 @@ const SppdFormModal: React.FC<SppdFormModalProps> = ({
             </div>
             <div className="flex-1 overflow-auto p-4 bg-slate-50 dark:bg-slate-950 flex items-center justify-center min-h-[360px]">
               {previewDoc.isImage ? (
-                <img
+                <StoredImage
                   src={previewDoc.url}
                   alt={previewDoc.name}
                   className="max-w-full max-h-[72vh] object-contain rounded-lg shadow-sm"
                 />
               ) : (
-                <iframe
-                  src={previewDoc.url}
-                  title={previewDoc.name}
-                  className="w-full h-[70vh] rounded-lg border border-slate-200 dark:border-slate-800 bg-white"
-                />
+                <StoredFileFrame url={previewDoc.url} title={previewDoc.name} />
               )}
             </div>
           </div>

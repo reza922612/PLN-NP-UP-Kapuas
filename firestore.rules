@@ -390,5 +390,78 @@ service cloud.firestore {
                     incoming().diff(existing()).affectedKeys().hasOnly(['title', 'message', 'priority', 'isActive', 'updatedAt']);
       allow delete: if isValidId(announcementId) && isAdmin();
     }
+
+    // 9. Firestore File Storage Collection (Fallback/Primary when Storage bucket is unavailable)
+    function isValidStoredFile(data, fileId) {
+      return data.keys().hasAll(['fileId', 'fileName', 'mimeType', 'sizeBytes', 'category', 'isPublic', 'chunkCount', 'inlineData', 'uploadedByUid', 'createdAt']) &&
+             data.keys().hasOnly(['fileId', 'fileName', 'mimeType', 'sizeBytes', 'category', 'isPublic', 'chunkCount', 'inlineData', 'uploadedByUid', 'createdAt']) &&
+             data.fileId == fileId &&
+             data.fileName is string && data.fileName.size() > 0 && data.fileName.size() <= 256 &&
+             data.mimeType is string && data.mimeType.size() > 0 && data.mimeType.size() <= 128 &&
+             data.sizeBytes is number && data.sizeBytes >= 0 && data.sizeBytes <= 52428800 &&
+             data.category in ['photo', 'dossier', 'training_cert', 'certification_cert', 'scan_doc', 'unit_photo', 'sppd_attachment'] &&
+             data.isPublic is bool &&
+             data.chunkCount is number && data.chunkCount >= 0 && data.chunkCount <= 120 &&
+             ((data.chunkCount == 0 && data.inlineData is string && data.inlineData.size() <= 750000) ||
+              (data.chunkCount > 0 && data.inlineData == null)) &&
+             data.uploadedByUid is string && data.uploadedByUid.size() > 0 && data.uploadedByUid.size() <= 128 &&
+             data.createdAt is timestamp;
+    }
+
+    function getStoredFileParent(fileId) {
+      return get(/databases/$(database)/documents/stored_files/$(fileId)).data;
+    }
+
+    function isValidStoredFileChunk(data, fileId) {
+      return data.keys().hasAll(['fileId', 'index', 'data', 'uploadedByUid']) &&
+             data.keys().hasOnly(['fileId', 'index', 'data', 'uploadedByUid']) &&
+             data.fileId == fileId &&
+             data.index is number && data.index >= 0 && data.index < 120 &&
+             data.data is string && data.data.size() > 0 && data.data.size() <= 800000 &&
+             data.uploadedByUid is string && data.uploadedByUid.size() > 0 && data.uploadedByUid.size() <= 128;
+    }
+
+    match /stored_files/{fileId} {
+      allow get: if isValidId(fileId) && (
+        existing().isPublic == true ||
+        isViewer() ||
+        (isSignedIn() && existing().uploadedByUid == request.auth.uid)
+      );
+      allow list: if false;
+      allow create: if isValidId(fileId) && isSignedIn() &&
+                    isValidStoredFile(incoming(), fileId) &&
+                    incoming().uploadedByUid == request.auth.uid &&
+                    incoming().createdAt == request.time && (
+                      incoming().isPublic == false ||
+                      (isAdmin() && incoming().category in ['photo', 'unit_photo'])
+                    );
+      allow update: if false;
+      allow delete: if isValidId(fileId) && (
+        isAdmin() ||
+        (isSignedIn() && existing().uploadedByUid == request.auth.uid)
+      );
+
+      match /chunks/{chunkId} {
+        allow get: if isValidId(fileId) && isValidId(chunkId) &&
+                   exists(/databases/$(database)/documents/stored_files/$(fileId)) && (
+                     getStoredFileParent(fileId).isPublic == true ||
+                     isViewer() ||
+                     (isSignedIn() && getStoredFileParent(fileId).uploadedByUid == request.auth.uid)
+                   );
+        allow list: if false;
+        allow create: if isValidId(fileId) && isValidId(chunkId) && isSignedIn() &&
+                      isValidStoredFileChunk(incoming(), fileId) &&
+                      incoming().uploadedByUid == request.auth.uid &&
+                      exists(/databases/$(database)/documents/stored_files/$(fileId)) &&
+                      getStoredFileParent(fileId).uploadedByUid == request.auth.uid &&
+                      incoming().index < getStoredFileParent(fileId).chunkCount;
+        allow update: if false;
+        allow delete: if isValidId(fileId) && isValidId(chunkId) && (
+          isAdmin() ||
+          (isSignedIn() && exists(/databases/$(database)/documents/stored_files/$(fileId)) &&
+           getStoredFileParent(fileId).uploadedByUid == request.auth.uid)
+        );
+      }
+    }
   }
 }

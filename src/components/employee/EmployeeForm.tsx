@@ -3,8 +3,7 @@ import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useEmployees } from '../../hooks/useEmployees';
-import { storage } from '../../lib/firebase';
-import { ref, uploadBytes, uploadBytesResumable, getDownloadURL, UploadTask } from 'firebase/storage';
+import { FileCategory, uploadFileSmart } from '../../lib/fileStorage';
 import { Employee } from '../../types';
 import {
   User,
@@ -25,7 +24,6 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
 import { differenceInYears } from 'date-fns';
-import imageCompression from 'browser-image-compression';
 import { PageHeader, SectionCard } from '../common/DashboardUI';
 
 const MAX_UPLOAD_SIZE_MB = 50;
@@ -117,50 +115,11 @@ type FileUploadStatus = {
 
 type UploadCacheEntry = {
   promise: Promise<string>;
-  task?: UploadTask;
+  controller: AbortController;
   cancelled: boolean;
   status: FileUploadStatus['status'];
   progress: number;
   url?: string;
-};
-
-const UPLOAD_STALL_TIMEOUT_MS = 20000;
-const COMPRESSION_TIMEOUT_MS = 2500;
-const SMALL_FILE_FAST_UPLOAD_BYTES = 512 * 1024;
-
-const withTimeout = <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
-  let timer: ReturnType<typeof setTimeout>;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
-  });
-  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
-};
-
-const optimizeImageFast = async (file: File, isPhoto: boolean): Promise<File> => {
-  if (!file.type.startsWith('image/') || file.size > 15 * 1024 * 1024) {
-    return file;
-  }
-
-  const minThreshold = isPhoto ? 250 * 1024 : 600 * 1024;
-  if (file.size <= minThreshold) {
-    return file;
-  }
-
-  try {
-    const compressed = await withTimeout(
-      imageCompression(file, {
-        maxSizeMB: isPhoto ? 0.35 : 1.0,
-        maxWidthOrHeight: isPhoto ? 1024 : 1600,
-        useWebWorker: false,
-        initialQuality: isPhoto ? 0.78 : 0.8,
-      }),
-      COMPRESSION_TIMEOUT_MS,
-      'Image compression timeout'
-    );
-    return compressed.size < file.size ? compressed : file;
-  } catch {
-    return file;
-  }
 };
 
 interface InputFieldProps {
@@ -452,13 +411,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
       if (entry.status === 'optimizing' || entry.status === 'uploading') {
         entry.cancelled = true;
         entry.status = 'cancelled';
-        if (entry.task) {
-          try {
-            entry.task.cancel();
-          } catch {
-            // ignore cancellation errors on finished tasks
-          }
-        }
+        entry.controller.abort();
         updateFileUploadUI(file, {
           status: 'cancelled',
           progress: entry.progress,
@@ -474,11 +427,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
       uploadCacheRef.current.forEach((entry) => {
         if (entry.status === 'optimizing' || entry.status === 'uploading') {
           entry.cancelled = true;
-          try {
-            entry.task?.cancel();
-          } catch {
-            // ignore
-          }
+          entry.controller.abort();
         }
       });
     };
@@ -505,128 +454,48 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
         return existing.promise;
       }
 
+      const controller = new AbortController();
       const entry: UploadCacheEntry = {
         promise: Promise.resolve(''),
+        controller,
         cancelled: false,
         status: 'optimizing',
         progress: 0,
       };
       uploadCacheRef.current.set(file, entry);
 
+      const category: FileCategory =
+        path === 'photos'
+          ? 'photo'
+          : path === 'dossiers'
+          ? 'dossier'
+          : path.includes('trainings')
+          ? 'training_cert'
+          : 'certification_cert';
+
       const promise = (async () => {
         try {
-          updateFileUploadUI(file, { status: 'optimizing', progress: 0 });
-          const fileToUpload = await optimizeImageFast(file, path === 'photos');
-
-          if (entry.cancelled) {
-            throw new Error(`Unggahan ${label} dibatalkan.`);
-          }
-
-          const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-          const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-          const storageRef = ref(storage, `${path}/${uniqueSuffix}_${safeName}`);
-          const metadata = {
-            contentType: fileToUpload.type || undefined,
-            cacheControl: 'public,max-age=31536000',
-          };
-
-          entry.status = 'uploading';
-          updateFileUploadUI(file, { status: 'uploading', progress: 5 });
-
-          let downloadUrl = '';
-
-          // Single HTTP request fast path for small files <= 512 KB
-          if (fileToUpload.size <= SMALL_FILE_FAST_UPLOAD_BYTES) {
-            const snapshot = await withTimeout(
-              uploadBytes(storageRef, fileToUpload, metadata),
-              UPLOAD_STALL_TIMEOUT_MS,
-              `Waktu unggah ${label} habis. Periksa koneksi internet Anda.`
-            );
-            if (entry.cancelled) {
-              throw new Error(`Unggahan ${label} dibatalkan.`);
-            }
-            downloadUrl = await withTimeout(
-              getDownloadURL(snapshot.ref),
-              10000,
-              `Gagal mengambil tautan ${label}.`
-            );
-          } else {
-            downloadUrl = await new Promise<string>((resolve, reject) => {
-              const uploadTask = uploadBytesResumable(storageRef, fileToUpload, metadata);
-              entry.task = uploadTask;
-
-              let lastBytes = -1;
-              let lastProgressTick = 0;
-              let stallTimer: ReturnType<typeof setTimeout> | null = null;
-
-              const clearStallTimer = () => {
-                if (stallTimer) {
-                  clearTimeout(stallTimer);
-                  stallTimer = null;
-                }
-              };
-
-              const resetStallTimer = () => {
-                clearStallTimer();
-                stallTimer = setTimeout(() => {
-                  entry.cancelled = true;
-                  try {
-                    uploadTask.cancel();
-                  } catch {
-                    // ignore
-                  }
-                  reject(
-                    new Error(
-                      `Koneksi unggahan ${label} terhenti terlalu lama. Silakan periksa internet Anda dan coba lagi.`
-                    )
-                  );
-                }, UPLOAD_STALL_TIMEOUT_MS);
-              };
-
-              resetStallTimer();
-
-              uploadTask.on(
-                'state_changed',
-                (snapshot) => {
-                  if (snapshot.bytesTransferred > lastBytes) {
-                    lastBytes = snapshot.bytesTransferred;
-                    resetStallTimer();
-                  }
-                  const progress = snapshot.totalBytes
-                    ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)
-                    : 0;
-                  entry.progress = progress;
-
-                  const now = Date.now();
-                  if (progress === 100 || now - lastProgressTick >= 150) {
-                    lastProgressTick = now;
-                    updateFileUploadUI(file, { status: 'uploading', progress });
-                  }
-                },
-                (error) => {
-                  clearStallTimer();
-                  if ((error as { code?: string })?.code === 'storage/canceled' || entry.cancelled) {
-                    reject(new Error(`Unggahan ${label} dibatalkan.`));
-                    return;
-                  }
-                  reject(error);
-                },
-                async () => {
-                  clearStallTimer();
-                  try {
-                    const url = await withTimeout(
-                      getDownloadURL(uploadTask.snapshot.ref),
-                      10000,
-                      `Gagal mengambil tautan ${label}.`
-                    );
-                    resolve(url);
-                  } catch (err) {
-                    reject(err);
-                  }
-                }
-              );
-            });
-          }
+          let lastProgressTick = 0;
+          const downloadUrl = await uploadFileSmart({
+            file,
+            fileName: file.name,
+            storagePath: path,
+            category,
+            label,
+            signal: controller.signal,
+            onProgress: (pct, stage) => {
+              entry.status = stage === 'optimizing' ? 'optimizing' : 'uploading';
+              entry.progress = pct;
+              const now = Date.now();
+              if (pct === 100 || pct <= 5 || now - lastProgressTick >= 150) {
+                lastProgressTick = now;
+                updateFileUploadUI(file, {
+                  status: entry.status,
+                  progress: pct,
+                });
+              }
+            },
+          });
 
           entry.status = 'done';
           entry.progress = 100;

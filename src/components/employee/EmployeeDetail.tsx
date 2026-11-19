@@ -30,6 +30,7 @@ import { syncPublicVerification } from '../../lib/publicVerification';
 import { formatDate, calculateAge, calculateTenure, cn } from '../../lib/utils';
 import { evaluateCertificationStatus } from '../../lib/certificationStatus';
 import { SectionCard } from '../common/DashboardUI';
+import { StoredImage, StoredFileLink } from '../common/StoredFileUI';
 import DocumentScannerModal from './DocumentScannerModal';
 
 interface EmployeeDetailProps {
@@ -221,10 +222,11 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
             <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-[#0072BC] via-[#72C8F1] to-[#F9D423]" />
             <div className="w-36 h-36 bg-[#EAF6FC] dark:bg-slate-800 rounded-2xl mx-auto mb-5 flex items-center justify-center text-[#0072BC]/40 dark:text-slate-600 ring-4 ring-[#F4F8FB] dark:ring-slate-800 overflow-hidden mt-2">
               {employee.photoUrl ? (
-                <img
+                <StoredImage
                   src={employee.photoUrl}
                   alt={employee.fullName}
                   className="w-full h-full object-cover"
+                  fallback={<UserIcon size={68} />}
                 />
               ) : (
                 <UserIcon size={68} />
@@ -280,15 +282,14 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
           </SectionCard>
 
           {employee.dossierUrl && (
-            <a
-              href={employee.dossierUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center justify-center gap-2.5 w-full p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-2xl text-emerald-700 dark:text-emerald-400 font-bold text-xs hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+            <StoredFileLink
+              url={employee.dossierUrl}
+              fileName={`Dossier_${employee.fullName}`}
+              className="flex items-center justify-center gap-2.5 w-full p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 rounded-2xl text-emerald-700 dark:text-emerald-400 font-bold text-xs hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors cursor-pointer"
             >
               <FileSpreadsheet size={17} />
               Buka Digital Dossier Pegawai
-            </a>
+            </StoredFileLink>
           )}
 
           {employee.id && (
@@ -489,15 +490,14 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
                               </p>
                             </div>
                             {t.certificateUrl && (
-                              <a
-                                href={t.certificateUrl}
-                                target="_blank"
-                                rel="noreferrer"
+                              <StoredFileLink
+                                url={t.certificateUrl}
+                                fileName={t.namaPelatihan}
                                 className="p-2 rounded-lg bg-white dark:bg-[#0E1A2E] border border-slate-200 dark:border-slate-700 text-[#0072BC] dark:text-[#72C8F1] hover:bg-[#0072BC] hover:text-white transition-colors shrink-0"
                                 title="Lihat Dokumen Pelatihan"
                               >
                                 <FileText size={14} />
-                              </a>
+                              </StoredFileLink>
                             )}
                           </div>
                         ))}
@@ -550,15 +550,14 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
                                 </p>
                               </div>
                               {c.certificateUrl && (
-                                <a
-                                  href={c.certificateUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
+                                <StoredFileLink
+                                  url={c.certificateUrl}
+                                  fileName={c.namaSertifikasi}
                                   className="p-2 rounded-lg bg-white dark:bg-[#0E1A2E] border border-slate-200 dark:border-slate-700 text-[#0072BC] dark:text-[#72C8F1] hover:bg-[#0072BC] hover:text-white transition-colors shrink-0"
                                   title="Lihat Sertifikat"
                                 >
                                   <FileText size={14} />
-                                </a>
+                                </StoredFileLink>
                               )}
                             </div>
                           );
@@ -598,18 +597,18 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
                           key={docItem.id || idx}
                           className="p-3.5 bg-[#F4F8FB] dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center gap-3.5 hover:border-[#0072BC]/40 transition-colors"
                         >
-                          <a
-                            href={docItem.fileUrl}
-                            target="_blank"
-                            rel="noreferrer"
+                          <StoredFileLink
+                            url={docItem.fileUrl}
+                            fileName={docItem.title}
                             className="w-14 h-14 rounded-xl bg-white dark:bg-[#0E1A2E] border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center"
                           >
-                            <img
+                            <StoredImage
                               src={docItem.fileUrl}
                               alt={docItem.title}
                               className="w-full h-full object-cover"
+                              fallback={<FileText size={18} className="text-[#0072BC]" />}
                             />
-                          </a>
+                          </StoredFileLink>
                           <div className="min-w-0 flex-1 space-y-0.5">
                             <span className="inline-block px-2 py-0.5 rounded bg-[#EAF6FC] dark:bg-[#0072BC]/20 text-[#0072BC] dark:text-[#72C8F1] text-[10px] font-bold">
                               {docItem.category}

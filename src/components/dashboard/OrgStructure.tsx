@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Employee } from '../../types';
 import { cn } from '../../lib/utils';
 import { PageHeader, EmptyState, CardGridSkeleton } from '../common/DashboardUI';
+import { StoredImage } from '../common/StoredFileUI';
 
 interface OrgStructureProps {
   onSelectEmployee?: (emp: Employee) => void;
@@ -92,7 +93,12 @@ const OrgStructure: React.FC<OrgStructureProps> = ({ onSelectEmployee }) => {
         )}
       >
         {employee.photoUrl ? (
-          <img src={employee.photoUrl} alt={employee.fullName} className="w-full h-full object-cover" />
+          <StoredImage
+            src={employee.photoUrl}
+            alt={employee.fullName}
+            className="w-full h-full object-cover"
+            fallback={employee.fullName?.[0]?.toUpperCase() || <User size={22} />}
+          />
         ) : (
           employee.fullName?.[0]?.toUpperCase() || <User size={22} />
         )}
@@ -271,7 +277,12 @@ const OrgStructure: React.FC<OrgStructureProps> = ({ onSelectEmployee }) => {
                 >
                   <div className="w-9 h-9 rounded-lg bg-white dark:bg-[#0E1A2E] text-[#0072BC] dark:text-[#72C8F1] font-bold text-xs flex items-center justify-center shrink-0 overflow-hidden border border-slate-200 dark:border-slate-700">
                     {m.photoUrl ? (
-                      <img src={m.photoUrl} alt={m.fullName} className="w-full h-full object-cover" />
+                      <StoredImage
+                        src={m.photoUrl}
+                        alt={m.fullName}
+                        className="w-full h-full object-cover"
+                        fallback={m.fullName?.[0]?.toUpperCase() || 'S'}
+                      />
                     ) : (
                       m.fullName?.[0]?.toUpperCase() || 'S'
                     )}
@@ -316,10 +327,11 @@ const OrgStructure: React.FC<OrgStructureProps> = ({ onSelectEmployee }) => {
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-[#EAF6FC] dark:bg-[#0072BC]/20 text-[#0072BC] dark:text-[#72C8F1] flex items-center justify-center font-extrabold text-xl overflow-hidden shrink-0">
                   {inspectedEmployee.photoUrl ? (
-                    <img
+                    <StoredImage
                       src={inspectedEmployee.photoUrl}
                       alt={inspectedEmployee.fullName}
                       className="w-full h-full object-cover"
+                      fallback={inspectedEmployee.fullName?.[0]?.toUpperCase() || 'P'}
                     />
                   ) : (
                     inspectedEmployee.fullName?.[0]?.toUpperCase() || 'P'

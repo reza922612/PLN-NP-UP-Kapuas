@@ -41,6 +41,7 @@ import {
   TableSkeleton,
 } from '../common/DashboardUI';
 import SppdFormModal from './SppdFormModal';
+import { StoredImage, StoredFileFrame } from '../common/StoredFileUI';
 import { cn } from '../../lib/utils';
 
 interface SppdManagementProps {
@@ -919,17 +920,13 @@ const SppdManagement: React.FC<SppdManagementProps> = ({
             </div>
             <div className="flex-1 overflow-auto p-4 bg-slate-50 dark:bg-slate-950 flex items-center justify-center min-h-[360px]">
               {previewDoc.isImage ? (
-                <img
+                <StoredImage
                   src={previewDoc.url}
                   alt={previewDoc.name}
                   className="max-w-full max-h-[72vh] object-contain rounded-lg shadow-sm"
                 />
               ) : (
-                <iframe
-                  src={previewDoc.url}
-                  title={previewDoc.name}
-                  className="w-full h-[70vh] rounded-lg border border-slate-200 dark:border-slate-800 bg-white"
-                />
+                <StoredFileFrame url={previewDoc.url} title={previewDoc.name} />
               )}
             </div>
           </div>

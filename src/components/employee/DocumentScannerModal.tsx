@@ -12,9 +12,7 @@ import {
   FileImage,
   ScanLine,
 } from 'lucide-react';
-import imageCompression from 'browser-image-compression';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '../../lib/firebase';
+import { uploadFileSmart } from '../../lib/fileStorage';
 import { Employee, ScannedDocument, Certification, Training } from '../../types';
 import { cn } from '../../lib/utils';
 
@@ -208,30 +206,19 @@ const DocumentScannerModal: React.FC<DocumentScannerModalProps> = ({
           ? capturedBlob
           : new File([capturedBlob], `scan_${Date.now()}.jpg`, { type: 'image/jpeg' });
 
-      const compressedFile = await imageCompression(fileToCompress, {
-        maxSizeMB: 0.7,
-        maxWidthOrHeight: 1600,
-        useWebWorker: true,
-        initialQuality: 0.82,
+      const downloadUrl = await uploadFileSmart({
+        file: fileToCompress,
+        fileName: `${targetType}_${Date.now()}.jpg`,
+        storagePath: `documents/scans/${employee.id}`,
+        category:
+          targetType === 'certification'
+            ? 'certification_cert'
+            : targetType === 'training'
+            ? 'training_cert'
+            : 'scan_doc',
+        label: 'Dokumen Pindai',
+        onProgress: (pct) => setUploadProgress(pct),
       });
-
-      const storagePath = `documents/scans/${employee.id}/${Date.now()}_${targetType}.jpg`;
-      const storageRef = ref(storage, storagePath);
-      const uploadTask = uploadBytesResumable(storageRef, compressedFile);
-
-      await new Promise<void>((resolve, reject) => {
-        uploadTask.on(
-          'state_changed',
-          (snapshot) => {
-            const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-            setUploadProgress(pct);
-          },
-          (err) => reject(err),
-          () => resolve()
-        );
-      });
-
-      const downloadUrl = await getDownloadURL(storageRef);
 
       if (targetType === 'certification') {
         const newCert: Certification = {

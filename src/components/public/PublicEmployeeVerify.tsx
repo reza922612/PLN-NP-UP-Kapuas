@@ -18,6 +18,7 @@ import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
 import { PublicEmployeeVerification } from '../../types';
 import PlnNpLogo from '../common/PlnNpLogo';
 import ThemeToggle from '../common/ThemeToggle';
+import { StoredImage } from '../common/StoredFileUI';
 import { cn } from '../../lib/utils';
 
 interface PublicEmployeeVerifyProps {
@@ -168,10 +169,11 @@ const PublicEmployeeVerify: React.FC<PublicEmployeeVerifyProps> = ({ employeeId,
               <div className="flex flex-col sm:flex-row items-center gap-6 pb-6 border-b border-slate-100 dark:border-slate-800">
                 <div className="w-28 h-28 rounded-3xl bg-slate-100 dark:bg-slate-800 border-4 border-white dark:border-slate-800 shadow-lg overflow-hidden flex items-center justify-center text-slate-300 dark:text-slate-600 shrink-0">
                   {record.photoUrl ? (
-                    <img
+                    <StoredImage
                       src={record.photoUrl}
                       alt={record.fullName}
                       className="w-full h-full object-cover"
+                      fallback={<UserIcon size={52} />}
                     />
                   ) : (
                     <UserIcon size={52} />

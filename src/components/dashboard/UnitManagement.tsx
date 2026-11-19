@@ -28,11 +28,10 @@ import autoTable from 'jspdf-autotable';
 import { useUnits } from '../../hooks/useUnits';
 import { Unit } from '../../types';
 import { APIProvider, Map, AdvancedMarker, Pin } from '@vis.gl/react-google-maps';
-import { storage } from '../../lib/firebase';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { uploadFileSmart } from '../../lib/fileStorage';
+import { StoredImage } from '../common/StoredFileUI';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
-import imageCompression from 'browser-image-compression';
 import {
   PageHeader,
   MetricCard,
@@ -463,36 +462,19 @@ const UnitManagement: React.FC = () => {
       let photoUrl = '';
 
       if (formData.photoUrl && formData.photoUrl[0] instanceof File) {
-        setLoadingStatus('Mengompresi gambar...');
         const file = formData.photoUrl[0];
         try {
-          const compressedFile = await imageCompression(file, {
-            maxSizeMB: 0.3,
-            maxWidthOrHeight: 800,
-            useWebWorker: true,
-            initialQuality: 0.6,
-          });
           setLoadingStatus('Mengunggah gambar (0%)...');
-          const storageRef = ref(storage, `units/${Date.now()}_${file.name}`);
-          const uploadTask = uploadBytesResumable(storageRef, compressedFile);
-
-          await new Promise((resolve, reject) => {
-            uploadTask.on(
-              'state_changed',
-              (snapshot) => {
-                const progress = Math.round(
-                  (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-                );
-                setLoadingStatus(`Mengunggah gambar (${progress}%)...`);
-              },
-              (error) => reject(error),
-              () => resolve(true)
-            );
+          photoUrl = await uploadFileSmart({
+            file,
+            fileName: file.name,
+            storagePath: 'units',
+            category: 'unit_photo',
+            label: 'Foto Unit',
+            onProgress: (pct) => setLoadingStatus(`Mengunggah gambar (${pct}%)...`),
           });
-
-          photoUrl = await getDownloadURL(storageRef);
-        } catch (compressionError) {
-          console.error('Upload failed:', compressionError);
+        } catch (uploadError) {
+          console.error('Upload failed:', uploadError);
           setLoadingStatus('Gagal mengunggah gambar. Menyimpan tanpa foto...');
         }
       }
@@ -836,7 +818,7 @@ const UnitManagement: React.FC = () => {
                     </label>
                     <div className="relative h-24 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-[#F4F8FB] dark:bg-slate-800/50 flex flex-col items-center justify-center p-2 overflow-hidden">
                       {photoPreview ? (
-                        <img src={photoPreview} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
+                        <StoredImage src={photoPreview} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
                       ) : (
                         <>
                           <Camera size={22} className="text-[#0072BC] dark:text-[#72C8F1]" />
@@ -921,10 +903,11 @@ const UnitManagement: React.FC = () => {
                 <div className="p-6 flex flex-col sm:flex-row gap-5">
                   <div className="w-full sm:w-36 h-36 rounded-2xl bg-[#EAF6FC] dark:bg-slate-800 overflow-hidden shrink-0 relative flex items-center justify-center border border-[#72C8F1]/30 dark:border-slate-700">
                     {unit.photoUrl ? (
-                      <img
+                      <StoredImage
                         src={unit.photoUrl}
                         alt={unit.namaUnitLayananPusatListrik}
                         className="w-full h-full object-cover"
+                        fallback={<Building2 className="text-[#0072BC]/40 dark:text-slate-600" size={42} />}
                       />
                     ) : (
                       <Building2 className="text-[#0072BC]/40 dark:text-slate-600" size={42} />

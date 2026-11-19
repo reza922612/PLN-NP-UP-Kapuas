@@ -25,6 +25,7 @@
 13. **Biometric Credential Hijacking**: Attempting to read, register, or delete `users/{otherUid}/biometric_credentials/{credDocId}` where `request.auth.uid != otherUid`, or injecting ghost fields / spoofing `userId` / modifying `credentialId` or `createdAt` on update.
 14. **SPPD Self-Approval / Cross-User Tampering**: Attempting to create an SPPD with status `'Approved'`, update another user's SPPD without admin role, or edit a submitted/approved SPPD as a non-admin applicant.
 15. **Unauthorized Broadcast / Dismissal Spoofing**: Attempting to create/update/delete `broadcast_announcements` as a non-admin (`viewer`/`employee`), listing inactive broadcasts as a non-admin, or writing `users/{otherUid}/dismissed_broadcasts/{id}` across users.
+16. **Public File Leakage / Orphaned Chunk Injection**: Attempting to mark a sensitive document (`dossier`, `certification_cert`, `sppd_attachment`) as `isPublic: true`, listing `stored_files`, uploading >50MB, or writing a chunk to a non-existent or non-owned `stored_files/{fileId}`.
 
 ## Test Runner (Conceptual)
 Tests will verify that these payloads return `PERMISSION_DENIED`.

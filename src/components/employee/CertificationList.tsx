@@ -31,6 +31,7 @@ import {
   CertificationStatusType,
   extractEvaluatedCertifications,
 } from '../../lib/certificationStatus';
+import { StoredFileLink } from '../common/StoredFileUI';
 
 const CertificationList: React.FC = () => {
   const { employees, loading } = useEmployees();
@@ -485,15 +486,14 @@ const CertificationList: React.FC = () => {
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         {cert.certificateUrl ? (
-                          <a
-                            href={cert.certificateUrl}
-                            target="_blank"
-                            rel="noreferrer"
+                          <StoredFileLink
+                            url={cert.certificateUrl}
+                            fileName={cert.namaSertifikasi}
                             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#EAF6FC] dark:bg-[#0072BC]/20 text-[#0072BC] dark:text-[#72C8F1] font-bold text-[11px] hover:bg-[#0072BC] hover:text-white transition-colors"
                           >
                             <FileText size={13} />
                             Lihat
-                          </a>
+                          </StoredFileLink>
                         ) : (
                           <span className="text-slate-300 dark:text-slate-600">-</span>
                         )}
@@ -586,15 +586,14 @@ const CertificationList: React.FC = () => {
                       {cert.unit}
                     </span>
                     {cert.certificateUrl && (
-                      <a
-                        href={cert.certificateUrl}
-                        target="_blank"
-                        rel="noreferrer"
+                      <StoredFileLink
+                        url={cert.certificateUrl}
+                        fileName={cert.namaSertifikasi}
                         className="p-2 rounded-lg bg-white dark:bg-[#0E1A2E] border border-slate-200 dark:border-slate-700 text-[#0072BC] dark:text-[#72C8F1] hover:bg-[#0072BC] hover:text-white transition-colors"
                         title="Buka Sertifikat"
                       >
                         <FileText size={14} />
-                      </a>
+                      </StoredFileLink>
                     )}
                   </div>
                 </div>

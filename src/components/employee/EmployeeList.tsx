@@ -19,6 +19,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { formatDate, calculateAge, calculateTenure, cn } from '../../lib/utils';
+import { StoredImage } from '../common/StoredFileUI';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -366,10 +367,11 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-xl bg-[#EAF6FC] dark:bg-[#0072BC]/20 text-[#0072BC] dark:text-[#72C8F1] font-extrabold text-xs flex items-center justify-center overflow-hidden shrink-0 border border-[#72C8F1]/30">
                             {emp.photoUrl ? (
-                              <img
+                              <StoredImage
                                 src={emp.photoUrl}
                                 alt={emp.fullName}
                                 className="w-full h-full object-cover"
+                                fallback={initials || 'P'}
                               />
                             ) : (
                               initials || 'P'

@@ -11,9 +11,8 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
-import imageCompression from 'browser-image-compression';
-import { db, handleFirestoreError, OperationType, storage } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { uploadFileSmart } from '../lib/fileStorage';
 import { logActivity } from '../lib/activityLogger';
 import { useAuth } from '../context/AuthContext';
 import { SppdAttachment, SppdRequest, SppdStatus } from '../types';
@@ -125,48 +124,23 @@ export const useSppd = (shouldFetch: boolean = true) => {
     total: number,
     onProgress?: (text: string) => void
   ): Promise<SppdAttachment> => {
-    let fileToUpload: File = file;
-
-    if (file.type.startsWith('image/') && file.size > 600 * 1024) {
-      onProgress?.(`Mengompresi gambar ${index + 1}/${total}...`);
-      try {
-        fileToUpload = await imageCompression(file, {
-          maxSizeMB: 0.9,
-          maxWidthOrHeight: 1600,
-          useWebWorker: true,
-        });
-      } catch {
-        fileToUpload = file;
-      }
-    }
-
-    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
-    const storagePath = `sppd_documents/${uid}/${Date.now()}_${index}_${safeFileName}`;
-    const storageRef = ref(storage, storagePath);
-
     onProgress?.(`Mengunggah dokumen ${index + 1}/${total}: ${file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, fileToUpload);
 
-    await new Promise<void>((resolve, reject) => {
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          const pct = Math.round(
-            (snapshot.bytesTransferred / Math.max(1, snapshot.totalBytes)) * 100
-          );
-          onProgress?.(`Mengunggah ${file.name} (${pct}%)...`);
-        },
-        (err) => reject(err),
-        () => resolve()
-      );
+    const downloadUrl = await uploadFileSmart({
+      file,
+      fileName: file.name,
+      storagePath: `sppd_documents/${uid}`,
+      category: 'sppd_attachment',
+      label: file.name,
+      onProgress: (pct) => {
+        onProgress?.(`Mengunggah ${file.name} (${pct}%)...`);
+      },
     });
-
-    const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
 
     return {
       id: `${Date.now()}_${index}`,
       name: clampStr(file.name, 256),
-      size: fileToUpload.size,
+      size: file.size,
       type: clampStr(file.type || 'application/octet-stream', 64),
       url: clampStr(downloadUrl, 1024),
       uploadedAt: new Date().toISOString(),
@@ -178,17 +152,17 @@ export const useSppd = (shouldFetch: boolean = true) => {
       throw new Error('Sesi pengguna tidak ditemukan. Silakan masuk ulang.');
     }
 
-    const uploadedAttachments: SppdAttachment[] = [];
-    for (let i = 0; i < input.pendingFiles.length; i += 1) {
-      const uploaded = await uploadAttachment(
-        input.pendingFiles[i],
-        user.uid,
-        i,
-        input.pendingFiles.length,
-        input.onUploadProgress
-      );
-      uploadedAttachments.push(uploaded);
-    }
+    const uploadedAttachments: SppdAttachment[] = await Promise.all(
+      input.pendingFiles.map((file, i) =>
+        uploadAttachment(
+          file,
+          user.uid,
+          i,
+          input.pendingFiles.length,
+          input.onUploadProgress
+        )
+      )
+    );
 
     const combinedDocs = [...input.existingAttachments, ...uploadedAttachments].slice(0, 10);
     const requestNumber = clampStr(

@@ -327,6 +327,39 @@
         "dismissedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "announcementId", "dismissedAt"]
+    },
+    "StoredFile": {
+      "title": "StoredFile",
+      "description": "Uploaded file metadata and optional inline base64 payload for files stored directly in Firestore",
+      "type": "object",
+      "properties": {
+        "fileId": { "type": "string", "maxLength": 128 },
+        "fileName": { "type": "string", "maxLength": 256 },
+        "mimeType": { "type": "string", "maxLength": 128 },
+        "sizeBytes": { "type": "number" },
+        "category": {
+          "type": "string",
+          "enum": ["photo", "dossier", "training_cert", "certification_cert", "scan_doc", "unit_photo", "sppd_attachment"]
+        },
+        "isPublic": { "type": "boolean" },
+        "chunkCount": { "type": "number" },
+        "inlineData": { "type": "string", "maxLength": 750000 },
+        "uploadedByUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fileId", "fileName", "mimeType", "sizeBytes", "category", "isPublic", "chunkCount", "inlineData", "uploadedByUid", "createdAt"]
+    },
+    "StoredFileChunk": {
+      "title": "StoredFileChunk",
+      "description": "Binary base64 slice of a large uploaded file stored under stored_files/{fileId}/chunks",
+      "type": "object",
+      "properties": {
+        "fileId": { "type": "string", "maxLength": 128 },
+        "index": { "type": "number" },
+        "data": { "type": "string", "maxLength": 800000 },
+        "uploadedByUid": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["fileId", "index", "data", "uploadedByUid"]
     }
   },
   "firestore": {
@@ -381,6 +414,14 @@
     "sppd_requests/{sppdId}": {
       "schema": "SppdRequest",
       "description": "SPPD travel requests and approval workflow records"
+    },
+    "stored_files/{fileId}": {
+      "schema": "StoredFile",
+      "description": "Uploaded file metadata and small inline payloads"
+    },
+    "stored_files/{fileId}/chunks/{chunkId}": {
+      "schema": "StoredFileChunk",
+      "description": "Chunked base64 slices for large uploaded files up to 50 MB"
     }
   }
 }
