@@ -417,6 +417,16 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
                       <InfoItem label="Nama Lengkap" value={employee.fullName} />
                       <InfoItem label="NIP" value={employee.nip} />
                       <InfoItem label="Jabatan Lengkap" value={employee.jabatanLengkap} />
+                      <InfoItem
+                        label="Atasan Langsung"
+                        value={
+                          employee.atasanNama
+                            ? employee.atasanJabatan
+                              ? `${employee.atasanNama} (${employee.atasanJabatan})`
+                              : employee.atasanNama
+                            : 'Pimpinan Tertinggi / Belum Diatur'
+                        }
+                      />
                       <InfoItem label="Unit Pelaksana" value={employee.unitPelaksana} />
                       <InfoItem label="Sub Unit" value={employee.subUnit} />
                       <InfoItem label="Perusahaan" value={employee.perusahaan} />

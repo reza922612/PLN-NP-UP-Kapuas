@@ -143,6 +143,9 @@ service cloud.firestore {
              data.status in ['Pegawai Organik', 'Pegawai Tugas Khusus', 'Tenaga Alih Daya'] &&
              (!('agama' in data) || (data.agama is string && data.agama.size() <= 50)) &&
              (!('masaJabatan' in data) || (data.masaJabatan is string && data.masaJabatan.size() <= 64)) &&
+             (!('atasanId' in data) || data.atasanId == null || (data.atasanId is string && data.atasanId.size() <= 128)) &&
+             (!('atasanNama' in data) || data.atasanNama == null || (data.atasanNama is string && data.atasanNama.size() <= 256)) &&
+             (!('atasanJabatan' in data) || data.atasanJabatan == null || (data.atasanJabatan is string && data.atasanJabatan.size() <= 256)) &&
              (!('familyMembers' in data) || (
                data.familyMembers is list &&
                data.familyMembers.size() <= 30 &&

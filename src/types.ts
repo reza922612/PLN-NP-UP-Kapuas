@@ -34,6 +34,9 @@ export interface Employee {
   unitPelaksana: string;
   subUnit: string;
   jabatanLengkap: string;
+  atasanId?: string | null;
+  atasanNama?: string;
+  atasanJabatan?: string;
   personGrade: string;
   positionGrade: string;
   tanggalMasuk: string;

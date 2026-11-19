@@ -82,6 +82,9 @@ const employeeSchema = z.object({
   unitPelaksana: z.string().min(1, 'Unit pelaksana wajib diisi'),
   subUnit: z.string().min(1, 'Sub unit wajib diisi'),
   jabatanLengkap: z.string().min(1, 'Jabatan lengkap wajib diisi'),
+  atasanId: z.string().max(128).optional().nullable(),
+  atasanNama: z.string().max(256).optional(),
+  atasanJabatan: z.string().max(256).optional(),
   personGrade: z.string().min(1, 'Person grade wajib diisi'),
   positionGrade: z.string().min(1, 'Position grade wajib diisi'),
   tanggalMasuk: z.string().min(1, 'Tanggal masuk wajib diisi'),
@@ -330,12 +333,16 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
   onCancel,
   isProfileEdit,
 }) => {
-  const { createEmployee, updateEmployee } = useEmployees(false);
+  const { employees, createEmployee, updateEmployee } = useEmployees(!isProfileEdit);
   const [isSuccess, setIsSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [isUploadingStep, setIsUploadingStep] = useState(false);
   const [fileUploads, setFileUploads] = useState<Map<File, FileUploadStatus>>(() => new Map());
+  const [supervisorSearch, setSupervisorSearch] = useState('');
+  const [manualSupervisorMode, setManualSupervisorMode] = useState(
+    Boolean(initialData?.atasanNama && !initialData?.atasanId)
+  );
 
   const uploadCacheRef = useRef<Map<File, UploadCacheEntry>>(new Map());
   const isMountedRef = useRef(true);
@@ -356,6 +363,9 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
     defaultValues: initialData
       ? ({
           ...initialData,
+          atasanId: initialData.atasanId || '',
+          atasanNama: initialData.atasanNama || '',
+          atasanJabatan: initialData.atasanJabatan || '',
           masaJabatan:
             initialData.masaJabatan || calculatePositionTenure(initialData.tanggalMulaiJabatan),
           familyMembers: (initialData.familyMembers || []).map((f) => ({
@@ -378,6 +388,9 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
           dossierUrl: initialData.dossierUrl ? [initialData.dossierUrl] : [],
         } as any)
       : {
+          atasanId: '',
+          atasanNama: '',
+          atasanJabatan: '',
           jenisKelamin: 'Laki-laki',
           status: 'Pegawai Organik',
           perusahaan: 'PT PLN Nusantara Power',
@@ -433,6 +446,55 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
     () => calculatePositionTenure(positionStartDateValue),
     [positionStartDateValue]
   );
+
+  const selectedSupervisorId = useWatch({ control, name: 'atasanId' }) || '';
+  const selectedSupervisorName = useWatch({ control, name: 'atasanNama' }) || '';
+  const selectedSupervisorTitle = useWatch({ control, name: 'atasanJabatan' }) || '';
+
+  const excludedSupervisorIds = useMemo(() => {
+    const blocked = new Set<string>();
+    if (!initialData?.id) return blocked;
+    blocked.add(initialData.id);
+    const queue = [initialData.id];
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      employees.forEach((emp) => {
+        if (emp.id && emp.atasanId === currentId && !blocked.has(emp.id)) {
+          blocked.add(emp.id);
+          queue.push(emp.id);
+        }
+      });
+    }
+    return blocked;
+  }, [employees, initialData?.id]);
+
+  const supervisorCandidates = useMemo(() => {
+    const q = supervisorSearch.trim().toLowerCase();
+    return employees
+      .filter((emp) => emp.id && !excludedSupervisorIds.has(emp.id))
+      .filter((emp) => {
+        if (!q) return true;
+        return (
+          emp.fullName.toLowerCase().includes(q) ||
+          (emp.jabatanLengkap || '').toLowerCase().includes(q) ||
+          (emp.unitPelaksana || '').toLowerCase().includes(q) ||
+          (emp.nip || '').toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => a.fullName.localeCompare(b.fullName));
+  }, [employees, excludedSupervisorIds, supervisorSearch]);
+
+  const matchedSupervisor = useMemo(
+    () => (selectedSupervisorId ? employees.find((e) => e.id === selectedSupervisorId) : undefined),
+    [employees, selectedSupervisorId]
+  );
+
+  useEffect(() => {
+    if (matchedSupervisor) {
+      setValue('atasanNama', matchedSupervisor.fullName);
+      setValue('atasanJabatan', matchedSupervisor.jabatanLengkap || '');
+    }
+  }, [matchedSupervisor, setValue]);
 
   useEffect(() => {
     setValue('masaJabatan', positionTenure);
@@ -566,6 +628,8 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
     cancelAllActiveUploads();
     uploadCacheRef.current.clear();
     setFileUploads(new Map());
+    setSupervisorSearch('');
+    setManualSupervisorMode(false);
     setFormError(null);
     reset();
   }, [cancelAllActiveUploads, reset]);
@@ -670,8 +734,27 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
       setIsUploadingStep(false);
       setUploadProgress('Menyimpan data pegawai...');
 
+      const syncedSupervisor =
+        data.atasanId && data.atasanId !== '__manual__'
+          ? employees.find((e) => e.id === data.atasanId)
+          : undefined;
+      const resolvedAtasanId = syncedSupervisor?.id || (data.atasanId && data.atasanId !== '__manual__' ? data.atasanId : null);
+      const resolvedAtasanNama = syncedSupervisor
+        ? syncedSupervisor.fullName
+        : manualSupervisorMode
+        ? data.atasanNama?.trim() || ''
+        : '';
+      const resolvedAtasanJabatan = syncedSupervisor
+        ? syncedSupervisor.jabatanLengkap || ''
+        : manualSupervisorMode
+        ? data.atasanJabatan?.trim() || ''
+        : '';
+
       const payload = {
         ...data,
+        atasanId: resolvedAtasanId,
+        atasanNama: resolvedAtasanNama,
+        atasanJabatan: resolvedAtasanJabatan,
         masaJabatan: calculatePositionTenure(data.tanggalMulaiJabatan) || data.masaJabatan || '',
         photoUrl: resolvedPhotoUrl || null,
         dossierUrl: resolvedDossierUrl || null,
@@ -924,6 +1007,108 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                   {tenure}
                 </div>
               </div>
+            </div>
+
+            {/* Pengisian Atasan Pegawai (Sinkron Struktur Organisasi) */}
+            <div className="md:col-span-2 lg:col-span-3 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-0.5 block">
+                    Atasan Langsung Pegawai (Sinkron Struktur Organisasi)
+                  </label>
+                  <p className="text-[11px] text-slate-400 font-medium px-0.5 mt-0.5">
+                    Pilih atasan langsung agar posisi pegawai tersusun otomatis di bagan menu Struktur Organisasi
+                  </p>
+                </div>
+                {!isProfileEdit && employees.length > 0 && (
+                  <input
+                    type="text"
+                    value={supervisorSearch}
+                    onChange={(e) => setSupervisorSearch(e.target.value)}
+                    placeholder="Filter nama / jabatan atasan..."
+                    className="sm:w-64 px-3 py-1.5 bg-[#F4F8FB] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-medium text-[#173B65] dark:text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-[#0072BC] outline-none"
+                  />
+                )}
+              </div>
+
+              {isProfileEdit ? (
+                <div className="px-3.5 py-2.5 bg-[#F4F8FB] dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-500 dark:text-slate-400">
+                  {selectedSupervisorName
+                    ? `${selectedSupervisorName}${selectedSupervisorTitle ? ` · ${selectedSupervisorTitle}` : ''}`
+                    : 'Pimpinan Tertinggi / Belum Diatur'}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={cn('flex flex-col gap-1.5', !manualSupervisorMode && 'md:col-span-2')}>
+                    <select
+                      value={manualSupervisorMode ? '__manual__' : selectedSupervisorId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '__manual__') {
+                          setManualSupervisorMode(true);
+                          setValue('atasanId', '');
+                        } else if (!val) {
+                          setManualSupervisorMode(false);
+                          setValue('atasanId', '');
+                          setValue('atasanNama', '');
+                          setValue('atasanJabatan', '');
+                        } else {
+                          setManualSupervisorMode(false);
+                          const chosen = employees.find((emp) => emp.id === val);
+                          setValue('atasanId', val);
+                          setValue('atasanNama', chosen?.fullName || '');
+                          setValue('atasanJabatan', chosen?.jabatanLengkap || '');
+                        }
+                      }}
+                      className="px-3.5 py-2.5 bg-[#F4F8FB] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-[#173B65] dark:text-slate-100 focus:ring-2 focus:ring-[#0072BC] focus:bg-white dark:focus:bg-[#0E1A2E] outline-none transition-all font-semibold"
+                    >
+                      <option value="" className="dark:bg-slate-900">
+                        — Tidak Ada Atasan (Pimpinan Tertinggi / Root Struktur) —
+                      </option>
+                      {supervisorCandidates.map((emp) => (
+                        <option key={emp.id} value={emp.id} className="dark:bg-slate-900">
+                          {emp.fullName} — {emp.jabatanLengkap || 'Tanpa Jabatan'} ({emp.unitPelaksana})
+                        </option>
+                      ))}
+                      {selectedSupervisorId && !matchedSupervisor && selectedSupervisorName && (
+                        <option value={selectedSupervisorId} className="dark:bg-slate-900">
+                          {selectedSupervisorName}
+                          {selectedSupervisorTitle ? ` — ${selectedSupervisorTitle}` : ''} (Tersimpan)
+                        </option>
+                      )}
+                      <option value="__manual__" className="dark:bg-slate-900">
+                        + Input Nama Atasan Manual (Belum Terdaftar di Sistem)
+                      </option>
+                    </select>
+                    {!manualSupervisorMode && selectedSupervisorId && (
+                      <span className="text-[11px] font-semibold text-[#0072BC] dark:text-[#72C8F1] px-0.5">
+                        Tersinkron di bawah: {matchedSupervisor?.fullName || selectedSupervisorName}
+                        {(matchedSupervisor?.jabatanLengkap || selectedSupervisorTitle) &&
+                          ` · ${matchedSupervisor?.jabatanLengkap || selectedSupervisorTitle}`}
+                      </span>
+                    )}
+                  </div>
+
+                  {manualSupervisorMode && (
+                    <>
+                      <InputField
+                        label="Nama Atasan Langsung"
+                        name="atasanNama"
+                        register={register}
+                        error={errors.atasanNama}
+                        placeholder="Masukkan nama lengkap atasan"
+                      />
+                      <InputField
+                        label="Jabatan Atasan (Opsional)"
+                        name="atasanJabatan"
+                        register={register}
+                        error={errors.atasanJabatan}
+                        placeholder="Contoh: Manager UP Kapuas"
+                      />
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </SectionCard>
