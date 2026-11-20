@@ -56,6 +56,7 @@ export interface Employee {
   noKTP: string;
   noBPJSKesehatan: string;
   noBPJSKetenagakerjaan: string;
+  noKPS?: string;
   pendidikanTerakhir: string;
   status: EmployeeStatus;
   perusahaan: CompanyName;

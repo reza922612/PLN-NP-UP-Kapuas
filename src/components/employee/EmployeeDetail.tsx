@@ -479,6 +479,7 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
                       <InfoItem label="Nomor NPWP" value={employee.noNPWP} />
                       <InfoItem label="BPJS Kesehatan" value={employee.noBPJSKesehatan} />
                       <InfoItem label="BPJS Ketenagakerjaan" value={employee.noBPJSKetenagakerjaan} />
+                      <InfoItem label="Nomor KPS Pegawai" value={employee.noKPS} />
                     </div>
                   </div>
                 </>

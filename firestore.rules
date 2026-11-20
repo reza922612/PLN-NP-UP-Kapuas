@@ -146,6 +146,7 @@ service cloud.firestore {
              (!('atasanId' in data) || data.atasanId == null || (data.atasanId is string && data.atasanId.size() <= 128)) &&
              (!('atasanNama' in data) || data.atasanNama == null || (data.atasanNama is string && data.atasanNama.size() <= 256)) &&
              (!('atasanJabatan' in data) || data.atasanJabatan == null || (data.atasanJabatan is string && data.atasanJabatan.size() <= 256)) &&
+             (!('noKPS' in data) || data.noKPS == null || (data.noKPS is string && data.noKPS.size() <= 128)) &&
              (!('familyMembers' in data) || (
                data.familyMembers is list &&
                data.familyMembers.size() <= 30 &&

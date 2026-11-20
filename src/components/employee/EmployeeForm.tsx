@@ -104,6 +104,7 @@ const employeeSchema = z.object({
   noKTP: z.string().min(1, 'Nomor KTP wajib diisi'),
   noBPJSKesehatan: z.string().min(1, 'Nomor BPJS Kesehatan wajib diisi'),
   noBPJSKetenagakerjaan: z.string().min(1, 'Nomor BPJS Ketenagakerjaan wajib diisi'),
+  noKPS: z.string().max(128, 'Nomor KPS maksimal 128 karakter').optional(),
   pendidikanTerakhir: z.string().min(1, 'Pendidikan terakhir wajib diisi'),
   status: z.enum(['Pegawai Organik', 'Pegawai Tugas Khusus', 'Tenaga Alih Daya']),
   perusahaan: z.enum([
@@ -366,6 +367,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
           atasanId: initialData.atasanId || '',
           atasanNama: initialData.atasanNama || '',
           atasanJabatan: initialData.atasanJabatan || '',
+          noKPS: initialData.noKPS || '',
           masaJabatan:
             initialData.masaJabatan || calculatePositionTenure(initialData.tanggalMulaiJabatan),
           familyMembers: (initialData.familyMembers || []).map((f) => ({
@@ -391,6 +393,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
           atasanId: '',
           atasanNama: '',
           atasanJabatan: '',
+          noKPS: '',
           jenisKelamin: 'Laki-laki',
           status: 'Pegawai Organik',
           perusahaan: 'PT PLN Nusantara Power',
@@ -752,6 +755,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
 
       const payload = {
         ...data,
+        noKPS: data.noKPS?.trim() || '',
         atasanId: resolvedAtasanId,
         atasanNama: resolvedAtasanNama,
         atasanJabatan: resolvedAtasanJabatan,
@@ -1145,6 +1149,13 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
               <InputField label="Nomor NPWP" name="noNPWP" register={register} error={errors.noNPWP} />
               <InputField label="BPJS Kesehatan" name="noBPJSKesehatan" register={register} error={errors.noBPJSKesehatan} />
               <InputField label="BPJS Ketenagakerjaan" name="noBPJSKetenagakerjaan" register={register} error={errors.noBPJSKetenagakerjaan} />
+              <InputField
+                label="Nomor KPS Pegawai"
+                name="noKPS"
+                register={register}
+                error={errors.noKPS}
+                placeholder="Nomor Kartu Pegawai Sehat (KPS)"
+              />
               <FileUploadField
                 label="Foto Pegawai"
                 name="photoUrl"

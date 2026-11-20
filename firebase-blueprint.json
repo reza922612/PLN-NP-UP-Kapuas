@@ -48,6 +48,7 @@
         "noKTP": { "type": "string" },
         "noBPJSKesehatan": { "type": "string" },
         "noBPJSKetenagakerjaan": { "type": "string" },
+        "noKPS": { "type": "string", "maxLength": 128, "description": "Nomor Kartu Pegawai Sehat (KPS) pegawai" },
         "pendidikanTerakhir": { "type": "string" },
         "status": { "type": "string", "enum": ["Pegawai Organik", "Pegawai Tugas Khusus", "Tenaga Alih Daya"] },
         "perusahaan": { "type": "string", "enum": ["PT PLN Nusantara Power", "PT PLN (Persero)", "PT PLN Paguntaka Cahaya Nusantara", "PT Mitra Karya Prima"] },
