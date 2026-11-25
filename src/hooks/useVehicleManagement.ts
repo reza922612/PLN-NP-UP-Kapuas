@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   addDoc,
   collection,
@@ -14,6 +14,15 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { logActivity } from '../lib/activityLogger';
+import {
+  dispatchSimapWhatsAppNotification,
+  fetchWhatsAppGatewayStatus,
+  formatWhatsAppPhone,
+  isValidIndonesianWhatsApp,
+  SIMAP_WHATSAPP_NUMBER_LOCAL,
+  WhatsAppDispatchResult,
+  WhatsAppGatewayStatus,
+} from '../data/whatsappConstants';
 import {
   PerintahJalanData,
   VehicleDriver,
@@ -72,6 +81,7 @@ export interface SaveVehicleLoanInput {
   pemohonNama: string;
   pemohonNip?: string | null;
   pemohonJabatan?: string | null;
+  nomorWhatsapp?: string | null;
   atasanLangsungEmployeeId?: string | null;
   atasanLangsungNama: string;
   atasanLangsungJabatan?: string | null;
@@ -101,6 +111,20 @@ export const useVehicleManagement = (enabled: boolean = true) => {
   const [drivers, setDrivers] = useState<VehicleDriver[]>([]);
   const [loans, setLoans] = useState<VehicleLoanRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [gatewayStatus, setGatewayStatus] = useState<WhatsAppGatewayStatus>({
+    configured: false,
+    provider: null,
+    senderNumber: SIMAP_WHATSAPP_NUMBER_LOCAL,
+    senderE164: '+6285111320701',
+    checked: false,
+    backendAvailable: true,
+  });
+
+  const refreshGatewayStatus = useCallback(async () => {
+    const status = await fetchWhatsAppGatewayStatus();
+    setGatewayStatus(status);
+    return status;
+  }, []);
 
   useEffect(() => {
     if (!enabled || !user) {
@@ -108,6 +132,7 @@ export const useVehicleManagement = (enabled: boolean = true) => {
       return;
     }
 
+    refreshGatewayStatus();
     let vehiclesReady = false;
     let driversReady = false;
     let loansReady = false;
@@ -165,7 +190,7 @@ export const useVehicleManagement = (enabled: boolean = true) => {
       unsubDrivers();
       unsubLoans();
     };
-  }, [enabled, user?.uid]);
+  }, [enabled, user?.uid, refreshGatewayStatus]);
 
   const vehicleStats = useMemo(() => {
     return {
@@ -304,9 +329,71 @@ export const useVehicleManagement = (enabled: boolean = true) => {
     }
   };
 
+  const sendVehicleLoanWhatsApp = useCallback(
+    async (loan: VehicleLoanRequest, overridePhone?: string): Promise<WhatsAppDispatchResult> => {
+      const targetRaw = (overridePhone ?? loan.nomorWhatsapp ?? '').trim();
+      const normalized = formatWhatsAppPhone(targetRaw);
+
+      if (!isValidIndonesianWhatsApp(normalized)) {
+        return {
+          sent: false,
+          senderNumber: SIMAP_WHATSAPP_NUMBER_LOCAL,
+          status: 'Gagal',
+          error:
+            'Nomor WhatsApp peminjam kendaraan belum diisi atau format tidak valid (+628xxxxxxxxxx).',
+        };
+      }
+
+      const result = await dispatchSimapWhatsAppNotification({
+        category: 'vehicle_loan',
+        nomorWhatsapp: normalized,
+        loanNumber: loan.loanNumber,
+        nama: loan.nama,
+        pemohonNama: loan.pemohonNama,
+        tujuan: loan.tujuan,
+        keperluan: loan.keperluan,
+        tanggalDipergunakan: loan.tanggalDipergunakan,
+        jamMulai: loan.jamMulai,
+        jamSelesai: loan.jamSelesai,
+        bidang: loan.bidang,
+        status: loan.status,
+        rejectionReason: loan.rejectionReason || null,
+        kendaraanNoPol: loan.perintahJalan?.kendaraanNoPol || null,
+        kendaraanNama: loan.perintahJalan?.kendaraanNama || null,
+        driverNama: loan.perintahJalan?.driverNama || null,
+        berangkatJam: loan.perintahJalan?.berangkatJam || null,
+      });
+
+      if (loan.id) {
+        try {
+          await updateDoc(doc(db, 'vehicle_loans', loan.id), {
+            ...(overridePhone ? { nomorWhatsapp: normalized } : {}),
+            whatsappStatus: result.status,
+            whatsappProvider: result.provider || null,
+            whatsappMessageId: result.sent ? result.messageId || null : null,
+            whatsappError: result.sent ? null : clampStr(result.error || 'Gagal', 512),
+            whatsappSentAt: result.sent ? new Date().toISOString() : null,
+            updatedAt: serverTimestamp(),
+          });
+        } catch (err) {
+          console.warn('Unable to update vehicle loan WhatsApp status in Firestore:', err);
+        }
+      }
+
+      return result;
+    },
+    []
+  );
+
   // --- Vehicle Loans & Perintah Jalan ---
   const saveVehicleLoan = async (input: SaveVehicleLoanInput): Promise<string> => {
     if (!user) throw new Error('Pengguna belum terautentikasi.');
+
+    const rawWa = (input.nomorWhatsapp || '').trim();
+    const formattedWa = rawWa ? formatWhatsAppPhone(rawWa) : '';
+    if (formattedWa && !isValidIndonesianWhatsApp(formattedWa)) {
+      throw new Error('Format Nomor WhatsApp tidak valid. Gunakan format +628xxxxxxxxxx.');
+    }
 
     const durasiJam = clampStr(calculateTimeDurationLabel(input.jamMulai, input.jamSelesai), 64);
     const loanNumber = clampStr(
@@ -337,6 +424,7 @@ export const useVehicleManagement = (enabled: boolean = true) => {
       pemohonNama: clampStr(input.pemohonNama, 256),
       pemohonNip: clampStr(input.pemohonNip, 64) || null,
       pemohonJabatan: clampStr(input.pemohonJabatan, 256) || null,
+      nomorWhatsapp: formattedWa || null,
       atasanLangsungEmployeeId: clampStr(input.atasanLangsungEmployeeId, 128) || null,
       atasanLangsungNama: clampStr(input.atasanLangsungNama, 256),
       atasanLangsungJabatan: clampStr(input.atasanLangsungJabatan, 256) || null,
@@ -362,6 +450,11 @@ export const useVehicleManagement = (enabled: boolean = true) => {
       } else {
         const ref = await addDoc(collection(db, 'vehicle_loans'), {
           ...basePayload,
+          whatsappStatus: formattedWa ? 'Menunggu Pengiriman' : null,
+          whatsappProvider: null,
+          whatsappMessageId: null,
+          whatsappError: null,
+          whatsappSentAt: null,
           perintahJalan: null,
           isTrackingActive: false,
           currentLat: null,
@@ -381,6 +474,17 @@ export const useVehicleManagement = (enabled: boolean = true) => {
           entityName: `${loanNumber} · ${basePayload.tujuan}`,
           description: `Pengajuan peminjaman kendaraan baru oleh ${basePayload.pemohonNama} tujuan ${basePayload.tujuan}`,
         });
+        if (formattedWa) {
+          await sendVehicleLoanWhatsApp({
+            id: ref.id,
+            ...basePayload,
+            nomorWhatsapp: formattedWa,
+            createdByUid: user.uid,
+            createdByEmail: clampStr(user.email || 'user@plnnusantarapower.co.id', 256),
+            createdAt: null,
+            updatedAt: null,
+          });
+        }
         return ref.id;
       }
     } catch (error) {
@@ -396,14 +500,16 @@ export const useVehicleManagement = (enabled: boolean = true) => {
   const approveOrRejectLoan = async (
     loan: VehicleLoanRequest,
     approve: boolean,
-    reason?: string
-  ) => {
-    if (!loan.id) return;
+    reason?: string,
+    fallbackPhone?: string
+  ): Promise<WhatsAppDispatchResult | null> => {
+    if (!loan.id) return null;
+    const nextStatus: VehicleLoanStatus = approve ? 'Disetujui' : 'Ditolak';
+    const nextReason = approve ? null : clampStr(reason || 'Pengajuan ditolak oleh admin.', 512);
     try {
-      const nextStatus: VehicleLoanStatus = approve ? 'Disetujui' : 'Ditolak';
       await updateDoc(doc(db, 'vehicle_loans', loan.id), {
         status: nextStatus,
-        rejectionReason: approve ? null : clampStr(reason || 'Pengajuan ditolak oleh admin.', 512),
+        rejectionReason: nextReason,
         updatedAt: serverTimestamp(),
       });
       await logActivity({
@@ -415,7 +521,21 @@ export const useVehicleManagement = (enabled: boolean = true) => {
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `vehicle_loans/${loan.id}`);
+      return null;
     }
+
+    const effectivePhone = (fallbackPhone || loan.nomorWhatsapp || '').trim();
+    if (effectivePhone && isValidIndonesianWhatsApp(effectivePhone)) {
+      return await sendVehicleLoanWhatsApp(
+        {
+          ...loan,
+          status: nextStatus,
+          rejectionReason: nextReason,
+        },
+        fallbackPhone
+      );
+    }
+    return null;
   };
 
   const savePerintahJalan = async (loan: VehicleLoanRequest, input: SavePerintahJalanInput) => {
@@ -517,6 +637,16 @@ export const useVehicleManagement = (enabled: boolean = true) => {
       entityName: `Perintah Jalan ${loan.loanNumber} (${perintahJalan.kendaraanNoPol})`,
       description: `Menerbitkan/memperbarui Perintah Jalan untuk ${loan.pemohonNama} · Driver: ${perintahJalan.driverNama} · Jarak: ${jarakTempuh} km`,
     });
+
+    const effectivePhone = (loan.nomorWhatsapp || '').trim();
+    if (effectivePhone && isValidIndonesianWhatsApp(effectivePhone)) {
+      return await sendVehicleLoanWhatsApp({
+        ...loan,
+        status: nextStatus,
+        perintahJalan,
+      });
+    }
+    return null;
   };
 
   const deleteVehicleLoan = async (loan: VehicleLoanRequest) => {
@@ -616,6 +746,8 @@ export const useVehicleManagement = (enabled: boolean = true) => {
     loans,
     loading,
     vehicleStats,
+    gatewayStatus,
+    refreshGatewayStatus,
     saveVehicle,
     deleteVehicle,
     saveDriver,
@@ -623,6 +755,7 @@ export const useVehicleManagement = (enabled: boolean = true) => {
     saveVehicleLoan,
     approveOrRejectLoan,
     savePerintahJalan,
+    sendVehicleLoanWhatsApp,
     deleteVehicleLoan,
     pushLiveTracking,
     stopLiveTracking,

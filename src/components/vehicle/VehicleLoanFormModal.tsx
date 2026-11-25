@@ -8,6 +8,7 @@ import {
   FileText,
   Loader2,
   MapPin,
+  MessageSquare,
   Search,
   UserCheck,
   Users,
@@ -15,6 +16,11 @@ import {
 } from 'lucide-react';
 import { Employee, VehicleLoanRequest } from '../../types';
 import { SPPD_BIDANG_OPTIONS } from '../../data/sppdConstants';
+import {
+  formatWhatsAppPhone,
+  isValidIndonesianWhatsApp,
+  SIMAP_WHATSAPP_NUMBER_LOCAL,
+} from '../../data/whatsappConstants';
 import {
   calculateTimeDurationLabel,
   SaveVehicleLoanInput,
@@ -144,6 +150,7 @@ const VehicleLoanFormModal: React.FC<VehicleLoanFormModalProps> = ({
   const [pemohonNama, setPemohonNama] = useState('');
   const [pemohonNip, setPemohonNip] = useState('');
   const [pemohonJabatan, setPemohonJabatan] = useState('');
+  const [nomorWhatsapp, setNomorWhatsapp] = useState('');
 
   const [atasanId, setAtasanId] = useState<string | null>(null);
   const [atasanNama, setAtasanNama] = useState('');
@@ -185,6 +192,7 @@ const VehicleLoanFormModal: React.FC<VehicleLoanFormModalProps> = ({
       setPemohonNama(initialLoan.pemohonNama || '');
       setPemohonNip(initialLoan.pemohonNip || '');
       setPemohonJabatan(initialLoan.pemohonJabatan || '');
+      setNomorWhatsapp(initialLoan.nomorWhatsapp || '');
       setAtasanId(initialLoan.atasanLangsungEmployeeId || null);
       setAtasanNama(initialLoan.atasanLangsungNama || '');
       setAtasanJabatan(initialLoan.atasanLangsungJabatan || '');
@@ -209,6 +217,9 @@ const VehicleLoanFormModal: React.FC<VehicleLoanFormModalProps> = ({
       setPemohonNama(defaultEmployee.fullName || '');
       setPemohonNip(defaultEmployee.nip || '');
       setPemohonJabatan(defaultEmployee.jabatanLengkap || '');
+      setNomorWhatsapp(
+        defaultEmployee.noTelepon ? formatWhatsAppPhone(defaultEmployee.noTelepon) : ''
+      );
 
       if (defaultEmployee.atasanId || defaultEmployee.atasanNama) {
         const sup = employees.find((e) => e.id === defaultEmployee.atasanId);
@@ -226,6 +237,7 @@ const VehicleLoanFormModal: React.FC<VehicleLoanFormModalProps> = ({
       setPemohonNama('');
       setPemohonNip('');
       setPemohonJabatan('');
+      setNomorWhatsapp('');
       setAtasanId(null);
       setAtasanNama('');
       setAtasanJabatan('');
@@ -252,6 +264,9 @@ const VehicleLoanFormModal: React.FC<VehicleLoanFormModalProps> = ({
     setPemohonNama(emp.fullName);
     setPemohonNip(emp.nip || '');
     setPemohonJabatan(emp.jabatanLengkap || '');
+    if (emp.noTelepon) {
+      setNomorWhatsapp(formatWhatsAppPhone(emp.noTelepon));
+    }
     if (!nama.trim()) {
       setNama(emp.fullName);
     }
@@ -279,6 +294,9 @@ const VehicleLoanFormModal: React.FC<VehicleLoanFormModalProps> = ({
     if (!asmanNama.trim()) {
       return setError('Menyetujui Assistant Manager Business Support wajib diisi.');
     }
+    if (nomorWhatsapp.trim() && !isValidIndonesianWhatsApp(nomorWhatsapp)) {
+      return setError('Format Nomor WhatsApp tidak valid. Gunakan format 08xx atau +628xx.');
+    }
 
     setSubmitting(true);
     try {
@@ -298,6 +316,7 @@ const VehicleLoanFormModal: React.FC<VehicleLoanFormModalProps> = ({
         pemohonNama,
         pemohonNip,
         pemohonJabatan,
+        nomorWhatsapp: nomorWhatsapp.trim() ? formatWhatsAppPhone(nomorWhatsapp) : null,
         atasanLangsungEmployeeId: atasanId,
         atasanLangsungNama: atasanNama,
         atasanLangsungJabatan: atasanJabatan,
@@ -457,21 +476,46 @@ const VehicleLoanFormModal: React.FC<VehicleLoanFormModalProps> = ({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-[#173B65] dark:text-slate-200">
-              Bidang (Sesuai Pengajuan SPPD) <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={bidang}
-              onChange={(e) => setBidang(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#F4F8FB] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#173B65] dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#0072BC]"
-            >
-              {SPPD_BIDANG_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-[#173B65] dark:text-slate-200">
+                Bidang (Sesuai Pengajuan SPPD) <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={bidang}
+                onChange={(e) => setBidang(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#F4F8FB] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-[#173B65] dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#0072BC]"
+              >
+                {SPPD_BIDANG_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-[#173B65] dark:text-slate-200">
+                Nomor WhatsApp Peminjam{' '}
+                <span className="text-[10px] font-semibold text-[#0072BC] dark:text-[#72C8F1]">
+                  (WA SIMAP {SIMAP_WHATSAPP_NUMBER_LOCAL})
+                </span>
+              </label>
+              <div className="relative">
+                <MessageSquare
+                  size={14}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400"
+                />
+                <input
+                  type="tel"
+                  value={nomorWhatsapp}
+                  maxLength={32}
+                  onChange={(e) => setNomorWhatsapp(e.target.value)}
+                  placeholder="Contoh: 0812xxxx atau +62812xxxx"
+                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-[#F4F8FB] dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-semibold font-mono text-[#173B65] dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#0072BC]"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="space-y-1.5">

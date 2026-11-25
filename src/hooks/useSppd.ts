@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   addDoc,
   collection,
@@ -16,6 +16,15 @@ import { uploadFileSmart } from '../lib/fileStorage';
 import { logActivity } from '../lib/activityLogger';
 import { useAuth } from '../context/AuthContext';
 import { SppdAttachment, SppdRequest, SppdStatus } from '../types';
+import {
+  dispatchSimapWhatsAppNotification,
+  fetchWhatsAppGatewayStatus,
+  formatWhatsAppPhone,
+  isValidIndonesianWhatsApp,
+  SIMAP_WHATSAPP_NUMBER_LOCAL,
+  WhatsAppDispatchResult,
+  WhatsAppGatewayStatus,
+} from '../data/whatsappConstants';
 
 export interface SaveSppdInput {
   existingId?: string;
@@ -35,6 +44,7 @@ export interface SaveSppdInput {
   jenisTransportasi: SppdRequest['jenisTransportasi'];
   kotaKeberangkatan: string;
   kotaTujuan: string;
+  nomorWhatsapp?: string;
   existingAttachments: SppdAttachment[];
   pendingFiles: File[];
   targetStatus: 'Draft' | 'Menunggu Approval';
@@ -64,11 +74,25 @@ export const useSppd = (shouldFetch: boolean = true) => {
   const { user, profile } = useAuth();
   const [requests, setRequests] = useState<SppdRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [gatewayStatus, setGatewayStatus] = useState<WhatsAppGatewayStatus>({
+    configured: false,
+    provider: null,
+    senderNumber: SIMAP_WHATSAPP_NUMBER_LOCAL,
+    senderE164: '+6285111320701',
+    checked: false,
+    backendAvailable: true,
+  });
 
   const isPrivilegedReader =
     profile?.role === 'super_admin' ||
     profile?.role === 'admin' ||
     profile?.role === 'viewer';
+
+  const refreshGatewayStatus = useCallback(async () => {
+    const status = await fetchWhatsAppGatewayStatus();
+    setGatewayStatus(status);
+    return status;
+  }, []);
 
   useEffect(() => {
     if (!shouldFetch || !user || !profile) {
@@ -77,6 +101,7 @@ export const useSppd = (shouldFetch: boolean = true) => {
     }
 
     setLoading(true);
+    refreshGatewayStatus();
     const colRef = collection(db, 'sppd_requests');
     const q = isPrivilegedReader
       ? query(colRef, orderBy('createdAt', 'desc'))
@@ -103,7 +128,7 @@ export const useSppd = (shouldFetch: boolean = true) => {
     );
 
     return () => unsubscribe();
-  }, [shouldFetch, user?.uid, profile?.role, isPrivilegedReader]);
+  }, [shouldFetch, user?.uid, profile?.role, isPrivilegedReader, refreshGatewayStatus]);
 
   const sppdStats = useMemo(() => {
     const total = requests.length;
@@ -147,9 +172,69 @@ export const useSppd = (shouldFetch: boolean = true) => {
     };
   };
 
+  const sendSppdWhatsApp = useCallback(
+    async (sppd: SppdRequest, overridePhone?: string): Promise<WhatsAppDispatchResult> => {
+      const targetRaw = (overridePhone ?? sppd.nomorWhatsapp ?? '').trim();
+      const normalized = formatWhatsAppPhone(targetRaw);
+
+      if (!isValidIndonesianWhatsApp(normalized)) {
+        return {
+          sent: false,
+          senderNumber: SIMAP_WHATSAPP_NUMBER_LOCAL,
+          status: 'Gagal',
+          error: 'Nomor WhatsApp pengaju SPPD belum diisi atau format tidak valid (+628xxxxxxxxxx).',
+        };
+      }
+
+      const result = await dispatchSimapWhatsAppNotification({
+        category: 'sppd',
+        nomorWhatsapp: normalized,
+        requestNumber: sppd.requestNumber,
+        namaPegawai: sppd.namaPegawai,
+        nip: sppd.nip,
+        unitKerja: sppd.unitKerja,
+        bidang: sppd.bidang,
+        jenisSppd: sppd.jenisSppd,
+        judulPerjalanan: sppd.judulPerjalanan,
+        kotaKeberangkatan: sppd.kotaKeberangkatan,
+        kotaTujuan: sppd.kotaTujuan,
+        tanggalKeberangkatan: sppd.tanggalKeberangkatan,
+        tanggalKembali: sppd.tanggalKembali,
+        jenisTransportasi: sppd.jenisTransportasi,
+        status: sppd.status,
+        approvalNotes: sppd.approvalNotes || null,
+      });
+
+      if (sppd.id) {
+        try {
+          await updateDoc(doc(db, 'sppd_requests', sppd.id), {
+            ...(overridePhone ? { nomorWhatsapp: normalized } : {}),
+            whatsappStatus: result.status,
+            whatsappProvider: result.provider || null,
+            whatsappMessageId: result.sent ? result.messageId || null : null,
+            whatsappError: result.sent ? null : clampStr(result.error || 'Gagal', 512),
+            whatsappSentAt: result.sent ? new Date().toISOString() : null,
+            updatedAt: serverTimestamp(),
+          });
+        } catch (err) {
+          console.warn('Unable to update SPPD WhatsApp status in Firestore:', err);
+        }
+      }
+
+      return result;
+    },
+    []
+  );
+
   const saveSppdRequest = async (input: SaveSppdInput): Promise<string> => {
     if (!user || !user.email) {
       throw new Error('Sesi pengguna tidak ditemukan. Silakan masuk ulang.');
+    }
+
+    const rawWa = (input.nomorWhatsapp || '').trim();
+    const formattedWa = rawWa ? formatWhatsAppPhone(rawWa) : '';
+    if (formattedWa && !isValidIndonesianWhatsApp(formattedWa)) {
+      throw new Error('Format Nomor WhatsApp pengaju tidak valid. Gunakan format +628xxxxxxxxxx.');
     }
 
     const uploadedAttachments: SppdAttachment[] = await Promise.all(
@@ -172,6 +257,8 @@ export const useSppd = (shouldFetch: boolean = true) => {
 
     input.onUploadProgress?.('Menyimpan pengajuan SPPD ke database...');
 
+    const shouldNotifyOnSubmit = input.targetStatus !== 'Draft' && Boolean(formattedWa);
+
     const basePayload = {
       requestNumber,
       employeeId: input.employeeId ? clampStr(input.employeeId, 128) : null,
@@ -191,6 +278,12 @@ export const useSppd = (shouldFetch: boolean = true) => {
       kotaTujuan: clampStr(input.kotaTujuan, 128),
       dokumenPendukung: combinedDocs,
       status: input.targetStatus,
+      nomorWhatsapp: formattedWa || null,
+      whatsappStatus: shouldNotifyOnSubmit ? ('Menunggu Pengiriman' as const) : null,
+      whatsappProvider: null,
+      whatsappMessageId: null,
+      whatsappError: null,
+      whatsappSentAt: null,
       approvalNotes: null,
       approvedByName: null,
       approvedByUid: null,
@@ -198,6 +291,7 @@ export const useSppd = (shouldFetch: boolean = true) => {
       updatedAt: serverTimestamp(),
     };
 
+    let savedId = input.existingId || '';
     if (input.existingId) {
       const path = `sppd_requests/${input.existingId}`;
       try {
@@ -212,46 +306,80 @@ export const useSppd = (shouldFetch: boolean = true) => {
               ? `Memperbarui draft SPPD "${basePayload.judulPerjalanan}"`
               : `Mengirim pengajuan SPPD "${basePayload.judulPerjalanan}" (${basePayload.kotaKeberangkatan} → ${basePayload.kotaTujuan})`,
         });
-        return input.existingId;
       } catch (err) {
         handleFirestoreError(err, OperationType.UPDATE, path);
         return input.existingId;
       }
+    } else {
+      const createPayload = {
+        ...basePayload,
+        applicantUid: user.uid,
+        applicantEmail: clampStr(user.email, 256),
+        createdAt: serverTimestamp(),
+      };
+
+      try {
+        const docRef = await addDoc(collection(db, 'sppd_requests'), createPayload);
+        savedId = docRef.id;
+        await logActivity({
+          action: 'CREATE',
+          entityType: 'sppd',
+          entityId: docRef.id,
+          entityName: `${requestNumber} · ${createPayload.namaPegawai}`,
+          description:
+            input.targetStatus === 'Draft'
+              ? `Menyimpan draft pengajuan SPPD "${createPayload.judulPerjalanan}"`
+              : `Mengajukan SPPD ${createPayload.jenisSppd} "${createPayload.judulPerjalanan}" (${createPayload.kotaKeberangkatan} → ${createPayload.kotaTujuan})`,
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, 'sppd_requests');
+        return '';
+      }
     }
 
-    const createPayload = {
-      ...basePayload,
-      applicantUid: user.uid,
-      applicantEmail: clampStr(user.email, 256),
-      createdAt: serverTimestamp(),
-    };
-
-    try {
-      const docRef = await addDoc(collection(db, 'sppd_requests'), createPayload);
-      await logActivity({
-        action: 'CREATE',
-        entityType: 'sppd',
-        entityId: docRef.id,
-        entityName: `${requestNumber} · ${createPayload.namaPegawai}`,
-        description:
-          input.targetStatus === 'Draft'
-            ? `Menyimpan draft pengajuan SPPD "${createPayload.judulPerjalanan}"`
-            : `Mengajukan SPPD ${createPayload.jenisSppd} "${createPayload.judulPerjalanan}" (${createPayload.kotaKeberangkatan} → ${createPayload.kotaTujuan})`,
+    if (shouldNotifyOnSubmit && savedId) {
+      input.onUploadProgress?.(
+        `Mengirim notifikasi WhatsApp SIMAP (${SIMAP_WHATSAPP_NUMBER_LOCAL})...`
+      );
+      await sendSppdWhatsApp({
+        id: savedId,
+        requestNumber,
+        applicantUid: user.uid,
+        applicantEmail: clampStr(user.email, 256),
+        employeeId: basePayload.employeeId,
+        namaPegawai: basePayload.namaPegawai,
+        nip: basePayload.nip,
+        jabatan: basePayload.jabatan,
+        bidang: basePayload.bidang,
+        unitKerja: basePayload.unitKerja,
+        jenisSppd: basePayload.jenisSppd,
+        judulPerjalanan: basePayload.judulPerjalanan,
+        tanggalKeberangkatan: basePayload.tanggalKeberangkatan,
+        tanggalKembali: basePayload.tanggalKembali,
+        nomorPrk: basePayload.nomorPrk,
+        nomorCoa: basePayload.nomorCoa,
+        jenisTransportasi: basePayload.jenisTransportasi,
+        kotaKeberangkatan: basePayload.kotaKeberangkatan,
+        kotaTujuan: basePayload.kotaTujuan,
+        dokumenPendukung: combinedDocs,
+        status: input.targetStatus,
+        nomorWhatsapp: formattedWa,
+        createdAt: null,
+        updatedAt: null,
       });
-      return docRef.id;
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'sppd_requests');
-      return '';
     }
+
+    return savedId;
   };
 
   const updateSppdStatus = async (params: {
     sppd: SppdRequest;
     newStatus: SppdStatus;
     approvalNotes?: string;
-  }): Promise<void> => {
-    const { sppd, newStatus, approvalNotes } = params;
-    if (!sppd.id || !user) return;
+    fallbackPhone?: string;
+  }): Promise<WhatsAppDispatchResult | null> => {
+    const { sppd, newStatus, approvalNotes, fallbackPhone } = params;
+    if (!sppd.id || !user) return null;
     const path = `sppd_requests/${sppd.id}`;
     const actorName = clampStr(
       profile?.displayName || user.displayName || user.email || 'Admin',
@@ -279,7 +407,22 @@ export const useSppd = (shouldFetch: boolean = true) => {
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, path);
+      return null;
     }
+
+    const effectivePhone = (fallbackPhone || sppd.nomorWhatsapp || '').trim();
+    if (effectivePhone && isValidIndonesianWhatsApp(effectivePhone)) {
+      return await sendSppdWhatsApp(
+        {
+          ...sppd,
+          status: newStatus,
+          approvalNotes: approvalNotes ? clampStr(approvalNotes, 512) : null,
+        },
+        fallbackPhone
+      );
+    }
+
+    return null;
   };
 
   const deleteSppdRequest = async (sppd: SppdRequest): Promise<void> => {
@@ -303,8 +446,11 @@ export const useSppd = (shouldFetch: boolean = true) => {
     requests,
     loading,
     sppdStats,
+    gatewayStatus,
+    refreshGatewayStatus,
     saveSppdRequest,
     updateSppdStatus,
+    sendSppdWhatsApp,
     deleteSppdRequest,
   };
 };

@@ -13,6 +13,9 @@ import {
   Settings,
   Users,
   Lock,
+  MessageSquare,
+  Phone,
+  RefreshCw,
 } from 'lucide-react';
 import { collection, doc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../lib/firebase';
@@ -23,6 +26,12 @@ import { cn } from '../../lib/utils';
 import { ThemeMode, UserProfile, UserRole } from '../../types';
 import { PageHeader, SectionCard } from '../common/DashboardUI';
 import BiometricSettingsCard from '../common/BiometricSettingsCard';
+import {
+  SIMAP_WHATSAPP_DISPLAY,
+  SIMAP_WHATSAPP_NUMBER_LOCAL,
+  WhatsAppGatewayStatus,
+  fetchWhatsAppGatewayStatus,
+} from '../../data/whatsappConstants';
 
 const ROLE_LABELS: Record<UserRole, { name: string; desc: string; color: string }> = {
   super_admin: {
@@ -62,6 +71,31 @@ const SettingsView: React.FC = () => {
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [updatingUid, setUpdatingUid] = useState<string | null>(null);
+  const [waGatewayStatus, setWaGatewayStatus] = useState<WhatsAppGatewayStatus>({
+    configured: false,
+    provider: null,
+    senderNumber: SIMAP_WHATSAPP_NUMBER_LOCAL,
+    senderE164: '+6285111320701',
+    checked: false,
+    backendAvailable: true,
+  });
+  const [checkingWaGateway, setCheckingWaGateway] = useState(false);
+
+  const handleCheckWaGateway = async () => {
+    setCheckingWaGateway(true);
+    try {
+      const res = await fetchWhatsAppGatewayStatus();
+      setWaGatewayStatus(res);
+    } finally {
+      setCheckingWaGateway(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      handleCheckWaGateway();
+    }
+  }, [user?.uid]);
 
   useEffect(() => {
     setDisplayName(profile?.displayName || '');
@@ -352,6 +386,100 @@ const SettingsView: React.FC = () => {
 
       {/* Biometric Login & Device Security */}
       <BiometricSettingsCard />
+
+      {/* Official SIMAP WhatsApp Service */}
+      <SectionCard
+        title="Layanan WhatsApp Resmi SIMAP"
+        subtitle="Nomor pengirim resmi notifikasi status dan persetujuan layanan kepegawaian"
+        icon={MessageSquare}
+        action={
+          <button
+            type="button"
+            disabled={checkingWaGateway}
+            onClick={handleCheckWaGateway}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#EAF6FC] dark:bg-[#0072BC]/20 text-[11px] font-bold text-[#0072BC] dark:text-[#72C8F1] hover:brightness-95 disabled:opacity-50"
+          >
+            <RefreshCw size={12} className={checkingWaGateway ? 'animate-spin' : ''} />
+            Periksa Status Gateway
+          </button>
+        }
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="p-4 rounded-xl border border-emerald-200/80 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 space-y-1.5">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                <Phone size={12} /> Nomor Pengirim WhatsApp SIMAP
+              </span>
+              <p className="text-base font-black font-mono text-[#173B65] dark:text-white">
+                {SIMAP_WHATSAPP_NUMBER_LOCAL}
+              </p>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                Format internasional: <span className="font-mono font-bold">{SIMAP_WHATSAPP_DISPLAY}</span>
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-[#F8FBFD] dark:bg-[#0B172A] space-y-1.5">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Status Koneksi Gateway API
+              </span>
+              <p
+                className={cn(
+                  'text-sm font-extrabold',
+                  waGatewayStatus.configured
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-amber-600 dark:text-amber-400'
+                )}
+              >
+                {waGatewayStatus.configured
+                  ? `Terhubung (${waGatewayStatus.provider?.toUpperCase()})`
+                  : !waGatewayStatus.backendAvailable
+                  ? 'Mode Alternatif WhatsApp Web'
+                  : 'Menunggu Token Gateway Server'}
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                {waGatewayStatus.configured
+                  ? 'Pengiriman pesan otomatis aktif langsung dari server.'
+                  : 'Saat gateway otomatis belum aktif, admin & pengaju tetap dapat mengirim pesan 1-klik via WhatsApp Web.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Cakupan Penerima Notifikasi Otomatis
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              {[
+                {
+                  title: 'Pengaju SPPD',
+                  desc: 'Notifikasi saat pengajuan dikirim, ditinjau, disetujui, ditolak, maupun selesai.',
+                },
+                {
+                  title: 'Pengaju Peminjam Kendaraan',
+                  desc: 'Notifikasi pengajuan masuk, persetujuan/penolakan admin, dan penerbitan Perintah Jalan.',
+                },
+                {
+                  title: 'Pengaju Nomor Surat & Berita Acara',
+                  desc: 'Notifikasi nomor surat otomatis beserta detail klasifikasi dan unit penerbit.',
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-[#F8FBFD] dark:bg-[#0B172A]"
+                >
+                  <p className="font-extrabold text-[#173B65] dark:text-slate-100 flex items-center gap-1.5">
+                    <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
+                    {item.title}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                    {item.desc}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </SectionCard>
 
       {/* Role & Permission Matrix */}
       <SectionCard

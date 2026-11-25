@@ -59,6 +59,10 @@ import {
   LETTER_UNIT_OPTIONS,
   WHATSAPP_STATUS_META,
 } from '../../data/letterConstants';
+import {
+  SIMAP_WHATSAPP_DISPLAY,
+  SIMAP_WHATSAPP_NUMBER_LOCAL,
+} from '../../data/whatsappConstants';
 import LetterNumberFormModal from './LetterNumberFormModal';
 import {
   PageHeader,
@@ -453,21 +457,21 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
           <MessageSquare size={16} className="shrink-0" />
           {gatewayStatus.configured ? (
             <span>
-              <strong>WhatsApp Gateway Aktif</strong> ({gatewayStatus.provider?.toUpperCase()}): Notifikasi otomatis dikirim segera setelah nomor surat diterbitkan.
+              <strong>WhatsApp Gateway Resmi SIMAP Aktif ({SIMAP_WHATSAPP_DISPLAY})</strong> [{gatewayStatus.provider?.toUpperCase()}]: Notifikasi otomatis dikirim segera setelah nomor surat diterbitkan.
             </span>
           ) : !gatewayStatus.backendAvailable ? (
             <span>
-              <strong>Pengiriman Otomatis Tidak Tersedia di Mode Preview Statis (HTTP 404):</strong> Penerbitan nomor surat tetap tersimpan aman &amp; atomik. Gunakan tombol <strong>WhatsApp Web</strong> pada tabel/detail untuk mengirim pesan secara langsung, atau jalankan aplikasi melalui URL server full-stack dengan kredensial WhatsApp API aktif.
+              <strong>Nomor WhatsApp Resmi SIMAP ({SIMAP_WHATSAPP_DISPLAY}) — Mode Preview Statis:</strong> Penerbitan nomor surat tetap tersimpan aman &amp; atomik. Gunakan tombol <strong>WhatsApp Web</strong> pada tabel/detail untuk mengirim pesan secara langsung, atau jalankan dari server full-stack dengan kredensial WhatsApp API aktif.
             </span>
           ) : (
             <span>
-              <strong>Gateway WhatsApp API Belum Dikonfigurasi di Server:</strong> Penerbitan nomor surat berjalan normal &amp; atomik. Untuk pengiriman otomatis tanpa klik, pasang kredensial WhatsApp Business API / Gateway di environment server; sementara itu Anda dapat memakai tombol <strong>WhatsApp Web</strong>.
+              <strong>Nomor WhatsApp Resmi SIMAP ({SIMAP_WHATSAPP_DISPLAY}) — Menunggu Token Gateway:</strong> Penerbitan nomor surat berjalan normal &amp; atomik. Untuk pengiriman otomatis tanpa klik, pasang kredensial WhatsApp Gateway di environment server; sementara itu gunakan tombol <strong>WhatsApp Web</strong>.
             </span>
           )}
         </div>
         <span className="shrink-0 font-bold text-[11px] uppercase tracking-wider">
           {gatewayStatus.configured
-            ? 'Terhubung'
+            ? `Terhubung (${SIMAP_WHATSAPP_NUMBER_LOCAL})`
             : !gatewayStatus.backendAvailable
             ? 'Mode Alternatif WA Web'
             : 'Menunggu Kredensial API'}
@@ -1254,10 +1258,15 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
               {/* WhatsApp Status & Log */}
               <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-extrabold text-[#173B65] dark:text-slate-100 flex items-center gap-1.5">
-                    <ShieldCheck size={15} className="text-[#0072BC]" />
-                    Status Pengiriman WhatsApp
-                  </span>
+                  <div>
+                    <span className="text-xs font-extrabold text-[#173B65] dark:text-slate-100 flex items-center gap-1.5">
+                      <ShieldCheck size={15} className="text-[#0072BC]" />
+                      Status Pengiriman WhatsApp
+                    </span>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Pengirim Resmi SIMAP: <strong className="font-mono">{SIMAP_WHATSAPP_DISPLAY}</strong>
+                    </p>
+                  </div>
                   <span
                     className={cn(
                       'px-2.5 py-0.5 rounded-md text-[10px] font-extrabold',
@@ -1278,39 +1287,37 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
                     Catatan Gateway: {activeSelectedDetail.whatsappError}
                   </p>
                 )}
-                {activeSelectedDetail.whatsappStatus === 'Gagal' && (
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <a
-                      href={buildWaMeHref(activeSelectedDetail)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700"
-                    >
-                      <ExternalLink size={12} />
-                      Kirim Langsung via WhatsApp Web
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => handleCopyWaMessage(activeSelectedDetail)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-[#0B172A] border border-slate-200 dark:border-slate-700 text-[#173B65] dark:text-slate-200 text-[11px] font-bold hover:border-[#0072BC]"
-                    >
-                      {copiedWaId ===
-                      (activeSelectedDetail.requestId ||
-                        activeSelectedDetail.id ||
-                        activeSelectedDetail.nomorSurat) ? (
-                        <>
-                          <Check size={12} className="text-emerald-500" />
-                          Teks Pesan Disalin
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={12} />
-                          Salin Teks Pesan WA
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <a
+                    href={buildWaMeHref(activeSelectedDetail)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700"
+                  >
+                    <ExternalLink size={12} />
+                    Kirim Langsung via WhatsApp Web
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyWaMessage(activeSelectedDetail)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-[#0B172A] border border-slate-200 dark:border-slate-700 text-[#173B65] dark:text-slate-200 text-[11px] font-bold hover:border-[#0072BC]"
+                  >
+                    {copiedWaId ===
+                    (activeSelectedDetail.requestId ||
+                      activeSelectedDetail.id ||
+                      activeSelectedDetail.nomorSurat) ? (
+                      <>
+                        <Check size={12} className="text-emerald-500" />
+                        Teks Pesan Disalin
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={12} />
+                        Salin Teks Pesan WA
+                      </>
+                    )}
+                  </button>
+                </div>
                 <pre className="text-[11px] font-sans whitespace-pre-wrap bg-[#F8FBFD] dark:bg-[#0B172A] p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300">
                   {buildWhatsAppPreviewMessage({
                     namaPengaju: activeSelectedDetail.namaPengaju,

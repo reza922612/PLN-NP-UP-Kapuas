@@ -264,6 +264,12 @@ export interface SppdRequest {
   kotaTujuan: string;
   dokumenPendukung: SppdAttachment[];
   status: SppdStatus;
+  nomorWhatsapp?: string | null;
+  whatsappStatus?: WhatsAppNotificationStatus | null;
+  whatsappProvider?: string | null;
+  whatsappMessageId?: string | null;
+  whatsappError?: string | null;
+  whatsappSentAt?: string | null;
   approvalNotes?: string | null;
   approvedByName?: string | null;
   approvedByUid?: string | null;
@@ -531,6 +537,12 @@ export interface VehicleLoanRequest {
   asmanBisnisSupportJabatan?: string | null;
   perintahJalan?: PerintahJalanData | null;
   status: VehicleLoanStatus;
+  nomorWhatsapp?: string | null;
+  whatsappStatus?: WhatsAppNotificationStatus | null;
+  whatsappProvider?: string | null;
+  whatsappMessageId?: string | null;
+  whatsappError?: string | null;
+  whatsappSentAt?: string | null;
   rejectionReason?: string | null;
   isTrackingActive?: boolean;
   currentLat?: number | null;

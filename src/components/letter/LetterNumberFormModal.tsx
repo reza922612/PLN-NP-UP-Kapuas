@@ -36,6 +36,7 @@ import {
   LETTER_UNIT_OPTIONS,
   mapUnitPelaksanaToLetterUnit,
 } from '../../data/letterConstants';
+import { SIMAP_WHATSAPP_NUMBER_LOCAL } from '../../data/whatsappConstants';
 import { SubmitLetterNumberInput, WhatsAppDispatchResult } from '../../hooks/useLetterNumbers';
 import { LetterNumberRequest } from '../../types';
 import { cn } from '../../lib/utils';
@@ -476,7 +477,7 @@ const LetterNumberFormModal: React.FC<LetterNumberFormModalProps> = ({
                   />
                 </div>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                  Format internasional Indonesia (+62). Detail nomor surat dikirim ke WhatsApp ini setelah submit.
+                  Format +62. Detail nomor surat dikirim dari WhatsApp SIMAP ({SIMAP_WHATSAPP_NUMBER_LOCAL}) setelah submit.
                 </p>
               </div>
             </div>
@@ -616,10 +617,10 @@ const LetterNumberFormModal: React.FC<LetterNumberFormModalProps> = ({
 
           {/* WhatsApp Message Preview */}
           <div className="rounded-2xl border border-emerald-200/80 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/20 p-4 space-y-2">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">
                 <MessageSquare size={14} />
-                Pratinjau Pesan Notifikasi WhatsApp Otomatis
+                Pratinjau Pesan WhatsApp SIMAP ({SIMAP_WHATSAPP_NUMBER_LOCAL})
               </span>
               <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-300">
                 Tujuan: {waValid ? normalizedWa : '+62...'}

@@ -4,17 +4,23 @@ import {
   Briefcase,
   Building2,
   Calendar,
+  Check,
   CheckCircle2,
   Clock,
+  Copy,
   Edit3,
+  ExternalLink,
   Eye,
   FileText,
   Filter,
   Loader2,
   MapPin,
+  MessageSquare,
   Paperclip,
+  Phone,
   Plane,
   Plus,
+  RefreshCw,
   Search,
   Send,
   Trash2,
@@ -32,6 +38,15 @@ import {
   SPPD_STATUS_OPTIONS,
   SPPD_UNIT_KERJA_OPTIONS,
 } from '../../data/sppdConstants';
+import { WHATSAPP_STATUS_META } from '../../data/letterConstants';
+import {
+  SIMAP_WHATSAPP_DISPLAY,
+  SIMAP_WHATSAPP_NUMBER_LOCAL,
+  buildSppdWhatsAppMessage,
+  formatWhatsAppPhone,
+  isValidIndonesianWhatsApp,
+  toWaMeLink,
+} from '../../data/whatsappConstants';
 import {
   ConfirmDialog,
   EmptyState,
@@ -87,8 +102,10 @@ const SppdManagement: React.FC<SppdManagementProps> = ({
     requests,
     loading,
     sppdStats,
+    gatewayStatus,
     saveSppdRequest,
     updateSppdStatus,
+    sendSppdWhatsApp,
     deleteSppdRequest,
   } = useSppd(true);
 
@@ -104,6 +121,9 @@ const SppdManagement: React.FC<SppdManagementProps> = ({
   const [deleting, setDeleting] = useState(false);
 
   const [approvalNotes, setApprovalNotes] = useState('');
+  const [detailWaPhone, setDetailWaPhone] = useState('+62');
+  const [sendingWaId, setSendingWaId] = useState<string | null>(null);
+  const [copiedWaId, setCopiedWaId] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<{
     name: string;
@@ -112,9 +132,25 @@ const SppdManagement: React.FC<SppdManagementProps> = ({
   } | null>(null);
 
   const [banner, setBanner] = useState<{
-    type: 'success' | 'error';
+    type: 'success' | 'warning' | 'error';
     message: string;
+    waTarget?: { phone: string; message: string; key: string };
   } | null>(null);
+
+  const resolveSppdPhone = (item: SppdRequest): string => {
+    if (item.nomorWhatsapp && isValidIndonesianWhatsApp(item.nomorWhatsapp)) {
+      return formatWhatsAppPhone(item.nomorWhatsapp);
+    }
+    const matchedEmp = employees.find(
+      (e) =>
+        (item.employeeId && e.id === item.employeeId) ||
+        (item.nip && e.nip === item.nip)
+    );
+    if (matchedEmp?.noTelepon && isValidIndonesianWhatsApp(matchedEmp.noTelepon)) {
+      return formatWhatsAppPhone(matchedEmp.noTelepon);
+    }
+    return '';
+  };
 
   const activeDetailSppd = useMemo(() => {
     if (!detailSppd?.id) return detailSppd;
@@ -165,7 +201,50 @@ const SppdManagement: React.FC<SppdManagementProps> = ({
 
   const handleOpenDetail = (item: SppdRequest) => {
     setApprovalNotes(item.approvalNotes || '');
+    setDetailWaPhone(resolveSppdPhone(item) || '+62');
     setDetailSppd(item);
+  };
+
+  const handleCopySppdWa = async (key: string, message: string) => {
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopiedWaId(key);
+      setTimeout(() => setCopiedWaId(null), 2500);
+    } catch {
+      // Ignore clipboard failure
+    }
+  };
+
+  const handleResendSppdWa = async (item: SppdRequest, overridePhone?: string) => {
+    const rawTarget = (overridePhone ?? resolveSppdPhone(item)).trim();
+    const formatted = formatWhatsAppPhone(rawTarget);
+    if (!isValidIndonesianWhatsApp(formatted)) {
+      setBanner({
+        type: 'error',
+        message: 'Nomor WhatsApp pengaju SPPD belum valid. Isi format +628xxxxxxxxxx terlebih dahulu.',
+      });
+      return;
+    }
+    const itemKey = item.id || item.requestNumber;
+    setSendingWaId(itemKey);
+    try {
+      const waResult = await sendSppdWhatsApp(item, formatted);
+      const waMsgText = buildSppdWhatsAppMessage(item);
+      if (waResult.sent) {
+        setBanner({
+          type: 'success',
+          message: `Notifikasi WhatsApp untuk ${item.requestNumber} berhasil dikirim dari SIMAP (${SIMAP_WHATSAPP_NUMBER_LOCAL}) ke ${formatted}.`,
+        });
+      } else {
+        setBanner({
+          type: 'warning',
+          message: `Pengiriman otomatis WA untuk ${item.requestNumber} gagal (${waResult.error || 'Gateway belum aktif'}). Gunakan tombol WhatsApp Web di samping untuk mengirim dari nomor SIMAP.`,
+          waTarget: { phone: formatted, message: waMsgText, key: itemKey },
+        });
+      }
+    } finally {
+      setSendingWaId(null);
+    }
   };
 
   const handleStatusChange = async (newStatus: SppdStatus) => {
@@ -178,17 +257,46 @@ const SppdManagement: React.FC<SppdManagementProps> = ({
       return;
     }
 
+    const fallbackPhone = isValidIndonesianWhatsApp(detailWaPhone)
+      ? formatWhatsAppPhone(detailWaPhone)
+      : resolveSppdPhone(activeDetailSppd) || undefined;
+
     setUpdatingStatus(true);
     try {
-      await updateSppdStatus({
+      const waResult = await updateSppdStatus({
         sppd: activeDetailSppd,
         newStatus,
         approvalNotes: approvalNotes.trim() || undefined,
+        fallbackPhone,
       });
-      setBanner({
-        type: 'success',
-        message: `Status ${activeDetailSppd.requestNumber} berhasil diperbarui menjadi ${newStatus}.`,
+
+      const updatedMsg = buildSppdWhatsAppMessage({
+        ...activeDetailSppd,
+        status: newStatus,
+        approvalNotes: approvalNotes.trim() || null,
       });
+
+      if (waResult?.sent && fallbackPhone) {
+        setBanner({
+          type: 'success',
+          message: `Status ${activeDetailSppd.requestNumber} diperbarui menjadi ${newStatus} & notifikasi WhatsApp SIMAP (${SIMAP_WHATSAPP_NUMBER_LOCAL}) terkirim ke ${fallbackPhone}.`,
+        });
+      } else if (fallbackPhone) {
+        setBanner({
+          type: 'warning',
+          message: `Status ${activeDetailSppd.requestNumber} diperbarui menjadi ${newStatus}. Notifikasi WA otomatis tertunda (${waResult?.error || 'gunakan WhatsApp Web'}).`,
+          waTarget: {
+            phone: fallbackPhone,
+            message: updatedMsg,
+            key: activeDetailSppd.id || activeDetailSppd.requestNumber,
+          },
+        });
+      } else {
+        setBanner({
+          type: 'success',
+          message: `Status ${activeDetailSppd.requestNumber} berhasil diperbarui menjadi ${newStatus}.`,
+        });
+      }
       setDetailSppd(null);
     } catch (err: any) {
       setBanner({
@@ -243,13 +351,38 @@ const SppdManagement: React.FC<SppdManagementProps> = ({
         }
       />
 
+      {/* Official SIMAP WhatsApp Sender Strip */}
+      <div
+        className={cn(
+          'rounded-2xl px-4 py-3 border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs',
+          gatewayStatus.configured
+            ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300'
+            : 'bg-[#EAF6FC]/70 dark:bg-[#0072BC]/15 border-[#72C8F1]/40 dark:border-[#0072BC]/40 text-[#173B65] dark:text-slate-200'
+        )}
+      >
+        <div className="flex items-center gap-2.5">
+          <MessageSquare size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <span>
+            <strong>Nomor WhatsApp Resmi SIMAP ({SIMAP_WHATSAPP_DISPLAY}):</strong>{' '}
+            {gatewayStatus.configured
+              ? `Gateway ${gatewayStatus.provider?.toUpperCase()} aktif — notifikasi status SPPD otomatis dikirim ke Pengaju SPPD.`
+              : 'Notifikasi pengaju SPPD siap dikirim otomatis melalui WhatsApp API server atau 1-klik WhatsApp Web di Detail Pengajuan.'}
+          </span>
+        </div>
+        <span className="shrink-0 font-bold text-[11px] uppercase tracking-wider text-[#0072BC] dark:text-[#72C8F1]">
+          {gatewayStatus.configured ? 'Gateway Terhubung' : `Pengirim: ${SIMAP_WHATSAPP_NUMBER_LOCAL}`}
+        </span>
+      </div>
+
       {banner && (
         <div
           role="status"
           className={cn(
-            'p-4 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold',
+            'p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold',
             banner.type === 'success'
               ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300'
+              : banner.type === 'warning'
+              ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300'
               : 'bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800/60 text-red-700 dark:text-red-300'
           )}
         >
@@ -261,14 +394,46 @@ const SppdManagement: React.FC<SppdManagementProps> = ({
             )}
             <span>{banner.message}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setBanner(null)}
-            className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
-            aria-label="Tutup Notifikasi"
-          >
-            <X size={14} />
-          </button>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {banner.waTarget && (
+              <>
+                <a
+                  href={toWaMeLink(banner.waTarget.phone, banner.waTarget.message)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700"
+                >
+                  <ExternalLink size={12} />
+                  Kirim via WhatsApp Web
+                </a>
+                <button
+                  type="button"
+                  onClick={() => handleCopySppdWa(banner.waTarget!.key, banner.waTarget!.message)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#173B65] dark:text-slate-100 text-[11px] font-bold"
+                >
+                  {copiedWaId === banner.waTarget.key ? (
+                    <>
+                      <Check size={12} className="text-emerald-600" />
+                      Disalin
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={12} />
+                      Salin Pesan
+                    </>
+                  )}
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => setBanner(null)}
+              className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+              aria-label="Tutup Notifikasi"
+            >
+              <X size={14} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -490,7 +655,19 @@ const SppdManagement: React.FC<SppdManagementProps> = ({
                               <span className={cn('w-1.5 h-1.5 rounded-full', meta.dotClass)} />
                               {meta.label}
                             </span>
-                            <p className="text-[10px] text-slate-400 mt-1.5 flex items-center gap-1">
+                            {item.whatsappStatus && (
+                              <span
+                                className={cn(
+                                  'mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold',
+                                  (WHATSAPP_STATUS_META[item.whatsappStatus] ||
+                                    WHATSAPP_STATUS_META['Menunggu Pengiriman']).badgeClass
+                                )}
+                              >
+                                <MessageSquare size={10} />
+                                WA: {item.whatsappStatus}
+                              </span>
+                            )}
+                            <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
                               <Paperclip size={11} />
                               {item.dokumenPendukung?.length || 0} lampiran
                             </p>
@@ -812,6 +989,123 @@ const SppdManagement: React.FC<SppdManagementProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* WhatsApp Notification Panel (Sender: SIMAP 085111320701) */}
+              {(() => {
+                const effectiveWaPhone = isValidIndonesianWhatsApp(detailWaPhone)
+                  ? formatWhatsAppPhone(detailWaPhone)
+                  : resolveSppdPhone(activeDetailSppd);
+                const sppdWaMessage = buildSppdWhatsAppMessage({
+                  ...activeDetailSppd,
+                  approvalNotes: approvalNotes.trim() || activeDetailSppd.approvalNotes,
+                });
+                const sppdKey = activeDetailSppd.id || activeDetailSppd.requestNumber;
+                const waMeta = activeDetailSppd.whatsappStatus
+                  ? WHATSAPP_STATUS_META[activeDetailSppd.whatsappStatus] ||
+                    WHATSAPP_STATUS_META['Menunggu Pengiriman']
+                  : null;
+
+                return (
+                  <div className="rounded-2xl border border-emerald-200/80 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/20 p-4 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                          <MessageSquare size={13} />
+                          Notifikasi WhatsApp Pengaju SPPD
+                        </p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                          Pengirim Resmi SIMAP: <strong className="font-mono">{SIMAP_WHATSAPP_DISPLAY}</strong>
+                        </p>
+                      </div>
+                      {waMeta && (
+                        <span
+                          className={cn(
+                            'px-2.5 py-0.5 rounded-md text-[10px] font-extrabold',
+                            waMeta.badgeClass
+                          )}
+                        >
+                          WA: {activeDetailSppd.whatsappStatus}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <div className="relative flex-1">
+                        <Phone
+                          size={13}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400"
+                        />
+                        <input
+                          type="tel"
+                          value={detailWaPhone}
+                          onChange={(e) => setDetailWaPhone(e.target.value)}
+                          onBlur={() => {
+                            if (detailWaPhone.trim()) {
+                              setDetailWaPhone(formatWhatsAppPhone(detailWaPhone));
+                            }
+                          }}
+                          placeholder="+6281234567890"
+                          className="w-full pl-8 pr-3 py-2 rounded-xl bg-white dark:bg-[#0B172A] border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-[#173B65] dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={sendingWaId === sppdKey || !effectiveWaPhone}
+                        onClick={() => handleResendSppdWa(activeDetailSppd, detailWaPhone)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0072BC] text-white text-[11px] font-bold hover:bg-[#173B65] disabled:opacity-50"
+                      >
+                        {sendingWaId === sppdKey ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <RefreshCw size={13} />
+                        )}
+                        Kirim WA Otomatis
+                      </button>
+
+                      {effectiveWaPhone && (
+                        <a
+                          href={toWaMeLink(effectiveWaPhone, sppdWaMessage)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700"
+                        >
+                          <ExternalLink size={13} />
+                          WhatsApp Web
+                        </a>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleCopySppdWa(sppdKey, sppdWaMessage)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-[#0B172A] border border-slate-200 dark:border-slate-700 text-[#173B65] dark:text-slate-200 text-[11px] font-bold hover:border-[#0072BC]"
+                      >
+                        {copiedWaId === sppdKey ? (
+                          <>
+                            <Check size={13} className="text-emerald-500" />
+                            Disalin
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={13} />
+                            Salin Pesan
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {activeDetailSppd.whatsappError && (
+                      <p className="text-[11px] text-red-600 dark:text-red-400 font-semibold">
+                        Catatan Gateway: {activeDetailSppd.whatsappError}
+                      </p>
+                    )}
+
+                    <pre className="text-[11px] font-sans whitespace-pre-wrap bg-white/80 dark:bg-[#0B172A]/80 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-slate-600 dark:text-slate-300 max-h-36 overflow-y-auto">
+                      {sppdWaMessage}
+                    </pre>
+                  </div>
+                );
+              })()}
 
               {/* Admin / Super Admin Approval Workflow Controls */}
               {canApprove && (

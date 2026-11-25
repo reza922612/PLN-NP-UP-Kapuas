@@ -31,6 +31,16 @@ import {
   LETTER_UNIT_OPTIONS,
 } from '../data/letterConstants';
 import { logActivity } from '../lib/activityLogger';
+import {
+  dispatchSimapWhatsAppNotification,
+  fetchWhatsAppGatewayStatus as fetchCentralGatewayStatus,
+  SIMAP_WHATSAPP_NUMBER_E164,
+  SIMAP_WHATSAPP_NUMBER_LOCAL,
+  WhatsAppDispatchResult,
+  WhatsAppGatewayStatus,
+} from '../data/whatsappConstants';
+
+export type { WhatsAppDispatchResult, WhatsAppGatewayStatus };
 
 export interface SubmitLetterNumberInput {
   applicantEmployeeId?: string | null;
@@ -46,39 +56,12 @@ export interface SubmitLetterNumberInput {
   perihal?: string;
 }
 
-export interface WhatsAppDispatchResult {
-  sent: boolean;
-  configured?: boolean;
-  provider?: string | null;
-  status: WhatsAppNotificationStatus;
-  messageId?: string | null;
-  error?: string | null;
-}
-
-export interface WhatsAppGatewayStatus {
-  configured: boolean;
-  provider: string | null;
-  checked: boolean;
-  backendAvailable: boolean;
-}
-
 const getSortableTime = (val: any): number => {
   if (!val) return 0;
   if (typeof val.toMillis === 'function') return val.toMillis();
   if (val.seconds) return val.seconds * 1000;
   const parsed = Date.parse(String(val));
   return Number.isNaN(parsed) ? 0 : parsed;
-};
-
-const resolveApiBaseUrl = (): string => {
-  const raw = String((import.meta as any).env?.VITE_API_BASE_URL || '').trim();
-  if (!raw) return '';
-  return raw.replace(/\/+$/, '');
-};
-
-const buildApiUrl = (apiPath: string): string => {
-  const base = resolveApiBaseUrl();
-  return base ? `${base}${apiPath}` : apiPath;
 };
 
 export function useLetterNumbers(enabled = true) {
@@ -89,6 +72,8 @@ export function useLetterNumbers(enabled = true) {
   const [gatewayStatus, setGatewayStatus] = useState<WhatsAppGatewayStatus>({
     configured: false,
     provider: null,
+    senderNumber: SIMAP_WHATSAPP_NUMBER_LOCAL,
+    senderE164: SIMAP_WHATSAPP_NUMBER_E164,
     checked: false,
     backendAvailable: true,
   });
@@ -96,40 +81,9 @@ export function useLetterNumbers(enabled = true) {
   const isPrivilegedViewer = !!profile && profile.role !== 'employee';
 
   const fetchWhatsAppGatewayStatus = useCallback(async (): Promise<WhatsAppGatewayStatus> => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      return { configured: false, provider: null, checked: true, backendAvailable: true };
-    }
-    try {
-      const idToken = await currentUser.getIdToken();
-      const resp = await fetch(buildApiUrl('/api/whatsapp/status'), {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      const contentType = resp.headers.get('content-type') || '';
-      if (!resp.ok || !contentType.includes('application/json')) {
-        const fallback = {
-          configured: false,
-          provider: null,
-          checked: true,
-          backendAvailable: resp.status !== 404 && contentType.includes('application/json'),
-        };
-        setGatewayStatus(fallback);
-        return fallback;
-      }
-      const data = (await resp.json()) as { configured?: boolean; provider?: string | null };
-      const status = {
-        configured: Boolean(data?.configured),
-        provider: data?.provider || null,
-        checked: true,
-        backendAvailable: true,
-      };
-      setGatewayStatus(status);
-      return status;
-    } catch {
-      const fallback = { configured: false, provider: null, checked: true, backendAvailable: false };
-      setGatewayStatus(fallback);
-      return fallback;
-    }
+    const status = await fetchCentralGatewayStatus();
+    setGatewayStatus(status);
+    return status;
   }, []);
 
   useEffect(() => {
@@ -211,82 +165,16 @@ export function useLetterNumbers(enabled = true) {
       nomorWhatsapp: string;
       unitLabel: string;
     }): Promise<WhatsAppDispatchResult> => {
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        return {
-          sent: false,
-          status: 'Gagal',
-          error: 'Sesi login tidak aktif.',
-        };
-      }
-
-      let dispatchResult: WhatsAppDispatchResult = {
-        sent: false,
-        status: 'Gagal',
-        error: 'Gagal menghubungi endpoint WhatsApp Gateway.',
-      };
-
-      try {
-        const idToken = await currentUser.getIdToken();
-        const resp = await fetch(buildApiUrl('/api/whatsapp/send-letter-notification'), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({
-            nomorWhatsapp: record.nomorWhatsapp,
-            nomorSurat: record.nomorSurat,
-            namaPengaju: record.namaPengaju,
-            nip: record.nip,
-            bidang: record.bidang,
-            tanggalPengajuan: record.tanggalPengajuan,
-            unitLabel: record.unitLabel,
-          }),
-        });
-
-        const contentType = resp.headers.get('content-type') || '';
-        const payload = contentType.includes('application/json')
-          ? ((await resp.json().catch(() => ({}))) as {
-              sent?: boolean;
-              configured?: boolean;
-              provider?: string | null;
-              messageId?: string;
-              error?: string;
-            })
-          : {};
-
-        if (resp.ok && payload.sent === true && payload.messageId) {
-          dispatchResult = {
-            sent: true,
-            configured: Boolean(payload.configured ?? true),
-            provider: payload.provider || null,
-            status: 'Terkirim',
-            messageId: payload.messageId,
-            error: null,
-          };
-        } else {
-          const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-          const fallback404 =
-            resp.status === 404
-              ? `Endpoint API WhatsApp tidak tersedia di hosting statis (${currentOrigin || 'HTTP 404'}). Penerbitan nomor tetap aman tersimpan. Gunakan tombol WhatsApp Web di bawah untuk mengirim pesan langsung, atau akses melalui server Node.js (npm run start) dengan kredensial WhatsApp API aktif.`
-              : `Pengiriman WhatsApp gagal (HTTP ${resp.status}). Silakan klik Kirim Ulang.`;
-          dispatchResult = {
-            sent: false,
-            configured: Boolean(payload.configured),
-            provider: payload.provider || null,
-            status: 'Gagal',
-            messageId: null,
-            error: payload.error || fallback404,
-          };
-        }
-      } catch (err: any) {
-        dispatchResult = {
-          sent: false,
-          status: 'Gagal',
-          error: err?.message || 'Koneksi ke layanan WhatsApp Gateway gagal.',
-        };
-      }
+      const dispatchResult = await dispatchSimapWhatsAppNotification({
+        category: 'letter_number',
+        nomorWhatsapp: record.nomorWhatsapp,
+        nomorSurat: record.nomorSurat,
+        namaPengaju: record.namaPengaju,
+        nip: record.nip,
+        bidang: record.bidang,
+        tanggalPengajuan: record.tanggalPengajuan,
+        unitLabel: record.unitLabel,
+      });
 
       const letterRef = doc(db, 'letter_number_requests', record.requestId);
       try {

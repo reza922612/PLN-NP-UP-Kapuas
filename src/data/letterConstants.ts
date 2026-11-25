@@ -5,6 +5,13 @@ import {
   LetterUnitCode,
   WhatsAppNotificationStatus,
 } from '../types';
+import {
+  buildLetterWhatsAppMessage,
+  formatWhatsAppPhone,
+  isValidIndonesianWhatsApp,
+} from './whatsappConstants';
+
+export { formatWhatsAppPhone, isValidIndonesianWhatsApp };
 
 export interface LetterCodeMeta {
   code: LetterCode;
@@ -131,28 +138,6 @@ export function isValidLetterCombination(
   };
 }
 
-export function formatWhatsAppPhone(input: string): string {
-  const cleaned = String(input || '').trim();
-  if (!cleaned) return '';
-  const digits = cleaned.replace(/\D/g, '');
-  if (!digits) return '';
-  if (digits.startsWith('0')) {
-    return `+62${digits.slice(1)}`;
-  }
-  if (digits.startsWith('62')) {
-    return `+${digits}`;
-  }
-  if (digits.startsWith('8')) {
-    return `+62${digits}`;
-  }
-  return `+${digits}`;
-}
-
-export function isValidIndonesianWhatsApp(phone: string): boolean {
-  const normalized = formatWhatsAppPhone(phone);
-  return /^\+628[0-9]{7,13}$/.test(normalized) || /^\+62[0-9]{8,14}$/.test(normalized);
-}
-
 export function formatSequenceLabel(sequenceNumber: number): string {
   return String(Math.max(1, Math.floor(sequenceNumber))).padStart(3, '0');
 }
@@ -226,25 +211,5 @@ export function buildWhatsAppPreviewMessage(params: {
   tanggalPengajuan: string;
   unitLabel: string;
 }): string {
-  return [
-    `Yth. Bapak/Ibu ${params.namaPengaju},`,
-    '',
-    'Pengajuan Nomor Surat/Berita Acara Anda telah berhasil diproses melalui SIMAP UP Kapuas.',
-    '',
-    'Berikut detail nomor yang telah diterbitkan:',
-    '',
-    'Nomor Surat:',
-    `*${params.nomorSurat}*`,
-    '',
-    `Nama: ${params.namaPengaju}`,
-    `NIP: ${params.nip}`,
-    `Bidang: ${params.bidang}`,
-    `Tanggal Pengajuan: ${params.tanggalPengajuan}`,
-    `Unit: ${params.unitLabel}`,
-    '',
-    'Terima kasih telah menggunakan layanan digital SIMAP UP Kapuas.',
-    '',
-    'PT PLN Nusantara Power',
-    'Unit Pembangkitan Kapuas',
-  ].join('\n');
+  return buildLetterWhatsAppMessage(params);
 }

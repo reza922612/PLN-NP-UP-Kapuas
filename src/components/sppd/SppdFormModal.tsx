@@ -12,6 +12,7 @@ import {
   Hash,
   Loader2,
   MapPin,
+  MessageSquare,
   Paperclip,
   Plane,
   RotateCcw,
@@ -33,6 +34,11 @@ import {
   SPPD_TRANSPORT_OPTIONS,
   SPPD_UNIT_KERJA_OPTIONS,
 } from '../../data/sppdConstants';
+import {
+  formatWhatsAppPhone,
+  isValidIndonesianWhatsApp,
+  SIMAP_WHATSAPP_NUMBER_LOCAL,
+} from '../../data/whatsappConstants';
 import { SaveSppdInput } from '../../hooks/useSppd';
 import { cn } from '../../lib/utils';
 import { ConfirmDialog } from '../common/DashboardUI';
@@ -81,6 +87,7 @@ const SppdFormModal: React.FC<SppdFormModalProps> = ({
   const [jabatan, setJabatan] = useState('');
   const [bidang, setBidang] = useState<string>('');
   const [unitKerja, setUnitKerja] = useState<SppdUnitWork>('UP Kapuas');
+  const [nomorWhatsapp, setNomorWhatsapp] = useState('');
 
   const [jenisSppd, setJenisSppd] = useState<SppdType>('SPPD Non Diklat');
   const [judulPerjalanan, setJudulPerjalanan] = useState('');
@@ -141,6 +148,7 @@ const SppdFormModal: React.FC<SppdFormModalProps> = ({
       setJabatan(initialSppd.jabatan || '');
       setBidang(initialSppd.bidang || '');
       setUnitKerja(initialSppd.unitKerja || 'UP Kapuas');
+      setNomorWhatsapp(initialSppd.nomorWhatsapp || '');
       setJenisSppd(initialSppd.jenisSppd || 'SPPD Non Diklat');
       setJudulPerjalanan(initialSppd.judulPerjalanan || '');
       setTanggalKeberangkatan(initialSppd.tanggalKeberangkatan || '');
@@ -161,12 +169,16 @@ const SppdFormModal: React.FC<SppdFormModalProps> = ({
       setNip(defaultEmployee.nip || '');
       setJabatan(defaultEmployee.jabatanLengkap || '');
       setUnitKerja(mapUnitPelaksanaToSppdUnit(defaultEmployee.unitPelaksana));
+      setNomorWhatsapp(
+        defaultEmployee.noTelepon ? formatWhatsAppPhone(defaultEmployee.noTelepon) : ''
+      );
     } else {
       setSelectedEmployeeId(null);
       setNamaPegawai('');
       setNip('');
       setJabatan('');
       setUnitKerja('UP Kapuas');
+      setNomorWhatsapp('');
     }
 
     setBidang('');
@@ -271,6 +283,9 @@ const SppdFormModal: React.FC<SppdFormModalProps> = ({
     if (!nomorCoa.trim()) errs.nomorCoa = 'Nomor COA wajib diisi.';
     if (!kotaKeberangkatan.trim()) errs.kotaKeberangkatan = 'Kota keberangkatan wajib diisi.';
     if (!kotaTujuan.trim()) errs.kotaTujuan = 'Kota tujuan wajib diisi.';
+    if (nomorWhatsapp.trim() && !isValidIndonesianWhatsApp(nomorWhatsapp)) {
+      errs.nomorWhatsapp = 'Format WhatsApp tidak valid (contoh: 0812xxxx atau +62812xxxx).';
+    }
     return errs;
   }, [
     namaPegawai,
@@ -278,6 +293,7 @@ const SppdFormModal: React.FC<SppdFormModalProps> = ({
     jabatan,
     bidang,
     unitKerja,
+    nomorWhatsapp,
     judulPerjalanan,
     tanggalKeberangkatan,
     tanggalKembali,
@@ -298,8 +314,11 @@ const SppdFormModal: React.FC<SppdFormModalProps> = ({
     setNip(emp.nip);
     setJabatan(emp.jabatanLengkap || '');
     setUnitKerja(mapUnitPelaksanaToSppdUnit(emp.unitPelaksana));
+    if (emp.noTelepon) {
+      setNomorWhatsapp(formatWhatsAppPhone(emp.noTelepon));
+    }
     setEmpDropdownOpen(false);
-    setTouched((prev) => ({ ...prev, namaPegawai: true, nip: true, jabatan: true }));
+    setTouched((p) => ({ ...p, namaPegawai: true, nip: true, jabatan: true }));
   };
 
   const handleFilesSelected = (fileList: FileList | null) => {
@@ -392,6 +411,7 @@ const SppdFormModal: React.FC<SppdFormModalProps> = ({
         jenisTransportasi,
         kotaKeberangkatan,
         kotaTujuan,
+        nomorWhatsapp: nomorWhatsapp.trim() ? formatWhatsAppPhone(nomorWhatsapp) : undefined,
         existingAttachments,
         pendingFiles: pendingFiles.map((p) => p.file),
         targetStatus,
@@ -708,7 +728,7 @@ const SppdFormModal: React.FC<SppdFormModalProps> = ({
               </div>
 
               {/* 5. Unit Kerja */}
-              <div className="space-y-1.5 md:col-span-2">
+              <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-[#173B65] dark:text-slate-200">
                   Unit Kerja <span className="text-red-500">*</span>
                 </label>
@@ -729,6 +749,46 @@ const SppdFormModal: React.FC<SppdFormModalProps> = ({
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* 5b. Nomor WhatsApp Pengaju */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-[#173B65] dark:text-slate-200">
+                  Nomor WhatsApp Pengaju{' '}
+                  <span className="text-[10px] font-semibold text-[#0072BC] dark:text-[#72C8F1]">
+                    (Notifikasi dari SIMAP {SIMAP_WHATSAPP_NUMBER_LOCAL})
+                  </span>
+                </label>
+                <div className="relative">
+                  <MessageSquare
+                    size={15}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400"
+                  />
+                  <input
+                    type="tel"
+                    value={nomorWhatsapp}
+                    maxLength={32}
+                    onChange={(e) => setNomorWhatsapp(e.target.value)}
+                    onBlur={() => setTouched((p) => ({ ...p, nomorWhatsapp: true }))}
+                    placeholder="Contoh: 0812xxxx atau +62812xxxx"
+                    className={cn(
+                      'w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#F4F8FB] dark:bg-slate-800/80 border text-xs font-semibold font-mono text-[#173B65] dark:text-slate-100 outline-none focus:ring-2 focus:ring-[#0072BC]',
+                      showError('nomorWhatsapp')
+                        ? 'border-red-400'
+                        : 'border-slate-200 dark:border-slate-700'
+                    )}
+                  />
+                </div>
+                {showError('nomorWhatsapp') ? (
+                  <p className="text-[11px] text-red-500 font-semibold">
+                    {showError('nomorWhatsapp')}
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-400">
+                    Terisi otomatis dari data pegawai. Update status SPPD dikirim via WA SIMAP{' '}
+                    <span className="font-mono font-bold">{SIMAP_WHATSAPP_NUMBER_LOCAL}</span>.
+                  </p>
+                )}
               </div>
             </div>
           </section>

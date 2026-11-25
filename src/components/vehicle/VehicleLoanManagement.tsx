@@ -1,16 +1,24 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  AlertCircle,
   Calendar,
   Car,
+  Check,
   CheckCircle2,
   ClipboardCheck,
   Clock,
+  Copy,
   Edit3,
+  ExternalLink,
   FileText,
   Gauge,
+  Loader2,
   MapPin,
+  MessageSquare,
   Navigation,
+  Phone,
   Plus,
+  RefreshCw,
   Search,
   Trash2,
   User,
@@ -22,6 +30,15 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useVehicleManagement } from '../../hooks/useVehicleManagement';
 import { fetchEmployeeDirectory } from '../../lib/employeeDirectory';
+import {
+  SIMAP_WHATSAPP_DISPLAY,
+  SIMAP_WHATSAPP_NUMBER_LOCAL,
+  buildVehicleLoanWhatsAppMessage,
+  formatWhatsAppPhone,
+  isValidIndonesianWhatsApp,
+  toWaMeLink,
+} from '../../data/whatsappConstants';
+import { WHATSAPP_STATUS_META } from '../../data/letterConstants';
 import {
   DriverStatus,
   Employee,
@@ -92,6 +109,7 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
     loans,
     loading,
     vehicleStats,
+    gatewayStatus,
     saveVehicle,
     deleteVehicle,
     saveDriver,
@@ -99,6 +117,7 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
     saveVehicleLoan,
     approveOrRejectLoan,
     savePerintahJalan,
+    sendVehicleLoanWhatsApp,
     deleteVehicleLoan,
     pushLiveTracking,
     stopLiveTracking,
@@ -124,6 +143,12 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
   const [loanModalOpen, setLoanModalOpen] = useState(false);
   const [editingLoan, setEditingLoan] = useState<VehicleLoanRequest | null>(null);
   const [perintahJalanLoan, setPerintahJalanLoan] = useState<VehicleLoanRequest | null>(null);
+
+  // WhatsApp notification modal & helpers
+  const [waModalLoan, setWaModalLoan] = useState<VehicleLoanRequest | null>(null);
+  const [waPhoneInput, setWaPhoneInput] = useState('+62');
+  const [sendingWaId, setSendingWaId] = useState<string | null>(null);
+  const [copiedWaId, setCopiedWaId] = useState<string | null>(null);
 
   // Approve / Reject dialog
   const [decisionLoan, setDecisionLoan] = useState<{
@@ -165,9 +190,78 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
   const [dUnitKerja, setDUnitKerja] = useState('UP Kapuas');
   const [dStatus, setDStatus] = useState<DriverStatus>('Aktif');
 
-  const [banner, setBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(
-    null
-  );
+  const [banner, setBanner] = useState<{
+    type: 'success' | 'warning' | 'error';
+    message: string;
+    waTarget?: { phone: string; message: string; key: string };
+  } | null>(null);
+
+  const resolveLoanPhone = (loan: VehicleLoanRequest): string => {
+    if (loan.nomorWhatsapp && isValidIndonesianWhatsApp(loan.nomorWhatsapp)) {
+      return formatWhatsAppPhone(loan.nomorWhatsapp);
+    }
+    const matched = directoryEmployees.find(
+      (e) =>
+        (loan.pemohonEmployeeId && e.id === loan.pemohonEmployeeId) ||
+        (loan.pemohonNip && e.nip === loan.pemohonNip)
+    );
+    if (matched?.noTelepon && isValidIndonesianWhatsApp(matched.noTelepon)) {
+      return formatWhatsAppPhone(matched.noTelepon);
+    }
+    return '';
+  };
+
+  const activeWaModalLoan = useMemo(() => {
+    if (!waModalLoan?.id) return waModalLoan;
+    return loans.find((l) => l.id === waModalLoan.id) || waModalLoan;
+  }, [waModalLoan, loans]);
+
+  const handleOpenWaModal = (loan: VehicleLoanRequest) => {
+    setWaPhoneInput(resolveLoanPhone(loan) || '+62');
+    setWaModalLoan(loan);
+  };
+
+  const handleCopyLoanWa = async (key: string, message: string) => {
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopiedWaId(key);
+      setTimeout(() => setCopiedWaId(null), 2500);
+    } catch {
+      // Ignore clipboard failure
+    }
+  };
+
+  const handleSendLoanWa = async (loan: VehicleLoanRequest, overridePhone?: string) => {
+    const rawTarget = (overridePhone ?? resolveLoanPhone(loan)).trim();
+    const formatted = formatWhatsAppPhone(rawTarget);
+    if (!isValidIndonesianWhatsApp(formatted)) {
+      setBanner({
+        type: 'error',
+        message: 'Nomor WhatsApp peminjam belum valid. Gunakan format +628xxxxxxxxxx.',
+      });
+      return;
+    }
+    const key = loan.id || loan.loanNumber;
+    setSendingWaId(key);
+    try {
+      const waResult = await sendVehicleLoanWhatsApp(loan, formatted);
+      const waMessage = buildVehicleLoanWhatsAppMessage(loan);
+      if (waResult.sent) {
+        setBanner({
+          type: 'success',
+          message: `Notifikasi WhatsApp ${loan.loanNumber} berhasil dikirim dari SIMAP (${SIMAP_WHATSAPP_NUMBER_LOCAL}) ke ${formatted}.`,
+        });
+      } else {
+        setBanner({
+          type: 'warning',
+          message: `Pengiriman otomatis WA untuk ${loan.loanNumber} gagal (${waResult.error || 'Gateway belum aktif'}). Gunakan tombol WhatsApp Web di samping.`,
+          waTarget: { phone: formatted, message: waMessage, key },
+        });
+      }
+    } finally {
+      setSendingWaId(null);
+    }
+  };
 
   const filteredLoans = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -317,14 +411,52 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
   const handleConfirmDecision = async () => {
     if (!decisionLoan) return;
     setDecisionSubmitting(true);
+    const fallbackPhone = resolveLoanPhone(decisionLoan.loan) || undefined;
     try {
-      await approveOrRejectLoan(decisionLoan.loan, decisionLoan.approve, rejectReason);
-      setBanner({
-        type: 'success',
-        message: decisionLoan.approve
-          ? `Pengajuan ${decisionLoan.loan.loanNumber} disetujui.`
-          : `Pengajuan ${decisionLoan.loan.loanNumber} ditolak.`,
+      const waResult = await approveOrRejectLoan(
+        decisionLoan.loan,
+        decisionLoan.approve,
+        rejectReason,
+        fallbackPhone
+      );
+      const nextStatus: VehicleLoanStatus = decisionLoan.approve ? 'Disetujui' : 'Ditolak';
+      const updatedMsg = buildVehicleLoanWhatsAppMessage({
+        ...decisionLoan.loan,
+        status: nextStatus,
+        rejectionReason: decisionLoan.approve ? null : rejectReason || 'Pengajuan ditolak oleh admin.',
       });
+
+      if (waResult?.sent && fallbackPhone) {
+        setBanner({
+          type: 'success',
+          message: `${
+            decisionLoan.approve
+              ? `Pengajuan ${decisionLoan.loan.loanNumber} disetujui`
+              : `Pengajuan ${decisionLoan.loan.loanNumber} ditolak`
+          } & notifikasi WhatsApp SIMAP (${SIMAP_WHATSAPP_NUMBER_LOCAL}) terkirim ke ${fallbackPhone}.`,
+        });
+      } else if (fallbackPhone) {
+        setBanner({
+          type: 'warning',
+          message: `${
+            decisionLoan.approve
+              ? `Pengajuan ${decisionLoan.loan.loanNumber} disetujui.`
+              : `Pengajuan ${decisionLoan.loan.loanNumber} ditolak.`
+          } Notifikasi WA otomatis tertunda (${waResult?.error || 'gunakan WhatsApp Web'}).`,
+          waTarget: {
+            phone: fallbackPhone,
+            message: updatedMsg,
+            key: decisionLoan.loan.id || decisionLoan.loan.loanNumber,
+          },
+        });
+      } else {
+        setBanner({
+          type: 'success',
+          message: decisionLoan.approve
+            ? `Pengajuan ${decisionLoan.loan.loanNumber} disetujui.`
+            : `Pengajuan ${decisionLoan.loan.loanNumber} ditolak.`,
+        });
+      }
       setDecisionLoan(null);
       setRejectReason('');
     } catch (err: any) {
@@ -402,19 +534,83 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
         }
       />
 
+      {/* Official SIMAP WhatsApp Sender Strip */}
+      <div
+        className={cn(
+          'rounded-2xl px-4 py-3 border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs',
+          gatewayStatus.configured
+            ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300'
+            : 'bg-[#EAF6FC]/70 dark:bg-[#0072BC]/15 border-[#72C8F1]/40 dark:border-[#0072BC]/40 text-[#173B65] dark:text-slate-200'
+        )}
+      >
+        <div className="flex items-center gap-2.5">
+          <MessageSquare size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <span>
+            <strong>Nomor WhatsApp Resmi SIMAP ({SIMAP_WHATSAPP_DISPLAY}):</strong>{' '}
+            {gatewayStatus.configured
+              ? `Gateway ${gatewayStatus.provider?.toUpperCase()} aktif — notifikasi pengajuan, approval, dan Perintah Jalan dikirim otomatis ke Pengaju Peminjam Kendaraan.`
+              : 'Notifikasi peminjam kendaraan siap dikirim otomatis via server atau melalui tombol Kirim WA / WhatsApp Web pada setiap pengajuan.'}
+          </span>
+        </div>
+        <span className="shrink-0 font-bold text-[11px] uppercase tracking-wider text-[#0072BC] dark:text-[#72C8F1]">
+          {gatewayStatus.configured ? 'Gateway Terhubung' : `Pengirim: ${SIMAP_WHATSAPP_NUMBER_LOCAL}`}
+        </span>
+      </div>
+
       {banner && (
         <div
           className={cn(
-            'p-3.5 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold',
+            'p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold',
             banner.type === 'success'
               ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300'
+              : banner.type === 'warning'
+              ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300'
               : 'bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800/60 text-red-700 dark:text-red-300'
           )}
         >
-          <span className="min-w-0 break-words">{banner.message}</span>
-          <button type="button" onClick={() => setBanner(null)} className="p-1 rounded-lg shrink-0">
-            <X size={14} />
-          </button>
+          <div className="flex items-center gap-2 min-w-0">
+            {banner.type === 'success' ? (
+              <CheckCircle2 size={15} className="shrink-0" />
+            ) : (
+              <AlertCircle size={15} className="shrink-0" />
+            )}
+            <span className="min-w-0 break-words">{banner.message}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {banner.waTarget && (
+              <>
+                <a
+                  href={toWaMeLink(banner.waTarget.phone, banner.waTarget.message)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700"
+                >
+                  <ExternalLink size={12} />
+                  Kirim via WhatsApp Web
+                </a>
+                <button
+                  type="button"
+                  onClick={() => handleCopyLoanWa(banner.waTarget!.key, banner.waTarget!.message)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#173B65] dark:text-slate-100 text-[11px] font-bold"
+                >
+                  {copiedWaId === banner.waTarget.key ? (
+                    <>
+                      <Check size={12} className="text-emerald-600" />
+                      Disalin
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={12} />
+                      Salin Pesan
+                    </>
+                  )}
+                </button>
+              </>
+            )}
+            <button type="button" onClick={() => setBanner(null)} className="p-1 rounded-lg shrink-0">
+              <X size={14} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -579,6 +775,18 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
                           <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[11px] font-bold">
                             {loan.bidang}
                           </span>
+                          {loan.whatsappStatus && (
+                            <span
+                              className={cn(
+                                'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold',
+                                (WHATSAPP_STATUS_META[loan.whatsappStatus] ||
+                                  WHATSAPP_STATUS_META['Menunggu Pengiriman']).badgeClass
+                              )}
+                            >
+                              <MessageSquare size={10} />
+                              WA: {loan.whatsappStatus}
+                            </span>
+                          )}
                         </div>
 
                         <h4 className="text-sm font-extrabold text-[#173B65] dark:text-white">
@@ -600,6 +808,12 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
                             {loan.tanggalDipergunakan} ({loan.jamMulai} – {loan.jamSelesai} ·{' '}
                             {loan.durasiJam})
                           </span>
+                          {resolveLoanPhone(loan) && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-700 dark:text-emerald-300">
+                              <Phone size={12} />
+                              {resolveLoanPhone(loan)}
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
@@ -693,6 +907,16 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
                             Tracking GPS
                           </button>
                         )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleOpenWaModal(loan)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-xs font-bold hover:bg-emerald-100"
+                          title={`Kirim Notifikasi WhatsApp dari SIMAP (${SIMAP_WHATSAPP_NUMBER_LOCAL})`}
+                        >
+                          <MessageSquare size={13} />
+                          Kirim WA
+                        </button>
 
                         {canEdit && (
                           <button
@@ -1085,13 +1309,196 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
         vehicles={vehicles}
         drivers={drivers}
         onSave={async (loan, input) => {
-          await savePerintahJalan(loan, input);
-          setBanner({
-            type: 'success',
-            message: `Perintah Jalan untuk ${loan.loanNumber} berhasil disimpan.`,
-          });
+          const fallbackPhone = resolveLoanPhone(loan);
+          const loanWithPhone =
+            loan.nomorWhatsapp || !fallbackPhone
+              ? loan
+              : { ...loan, nomorWhatsapp: fallbackPhone };
+          const waResult = await savePerintahJalan(loanWithPhone, input);
+          if (waResult?.sent && fallbackPhone) {
+            setBanner({
+              type: 'success',
+              message: `Perintah Jalan untuk ${loan.loanNumber} tersimpan & notifikasi WA SIMAP (${SIMAP_WHATSAPP_NUMBER_LOCAL}) terkirim ke ${fallbackPhone}.`,
+            });
+          } else if (fallbackPhone) {
+            const msgText = buildVehicleLoanWhatsAppMessage({
+              ...loan,
+              status: input.targetStatus || 'Perintah Jalan Terbit',
+              perintahJalan: {
+                tanggal: input.tanggal,
+                driverId: input.driverId || null,
+                driverNama: input.driverNama,
+                berangkatJam: input.berangkatJam,
+                kembaliJam: input.kembaliJam,
+                lamaDipergunakan: '-',
+                vehicleId: input.vehicleId || null,
+                kendaraanNoPol: input.kendaraanNoPol,
+                kendaraanNama: input.kendaraanNama,
+                keperluan: input.keperluan,
+                standKmAwal: input.standKmAwal,
+                standKmAkhir: input.standKmAkhir,
+                jarakTempuh: Math.max(0, input.standKmAkhir - input.standKmAwal),
+                picUid: user?.uid || '',
+                picNama: '',
+                issuedAt: new Date().toISOString(),
+              },
+            });
+            setBanner({
+              type: 'warning',
+              message: `Perintah Jalan untuk ${loan.loanNumber} berhasil disimpan. Notifikasi WA otomatis tertunda (${waResult?.error || 'gunakan WhatsApp Web'}).`,
+              waTarget: {
+                phone: fallbackPhone,
+                message: msgText,
+                key: loan.id || loan.loanNumber,
+              },
+            });
+          } else {
+            setBanner({
+              type: 'success',
+              message: `Perintah Jalan untuk ${loan.loanNumber} berhasil disimpan.`,
+            });
+          }
         }}
       />
+
+      {/* WhatsApp Notification Modal (Sender: SIMAP 085111320701) */}
+      {activeWaModalLoan && (() => {
+        const effectivePhone = isValidIndonesianWhatsApp(waPhoneInput)
+          ? formatWhatsAppPhone(waPhoneInput)
+          : resolveLoanPhone(activeWaModalLoan);
+        const waMessage = buildVehicleLoanWhatsAppMessage(activeWaModalLoan);
+        const loanKey = activeWaModalLoan.id || activeWaModalLoan.loanNumber;
+        const waMeta = activeWaModalLoan.whatsappStatus
+          ? WHATSAPP_STATUS_META[activeWaModalLoan.whatsappStatus] ||
+            WHATSAPP_STATUS_META['Menunggu Pengiriman']
+          : null;
+
+        return (
+          <div
+            className="fixed inset-0 z-50 bg-[#071120]/65 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={() => setWaModalLoan(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-[#0E1A2E] rounded-2xl border border-slate-200 dark:border-slate-800 max-w-xl w-full overflow-hidden shadow-2xl"
+            >
+              <div className="bg-gradient-to-r from-[#173B65] to-[#0072BC] px-5 py-4 text-white flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-mono font-bold text-[#F9D423]">
+                    {activeWaModalLoan.loanNumber} · Pengirim SIMAP: {SIMAP_WHATSAPP_NUMBER_LOCAL}
+                  </p>
+                  <h4 className="text-sm font-extrabold">
+                    Kirim Notifikasi WhatsApp Peminjam Kendaraan
+                  </h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setWaModalLoan(null)}
+                  className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-slate-500 dark:text-slate-400">
+                    Pemohon: <strong className="text-[#173B65] dark:text-white">{activeWaModalLoan.pemohonNama}</strong>
+                  </span>
+                  {waMeta && (
+                    <span className={cn('px-2.5 py-0.5 rounded-md text-[10px] font-extrabold', waMeta.badgeClass)}>
+                      WA: {activeWaModalLoan.whatsappStatus}
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-[#173B65] dark:text-slate-200">
+                    Nomor WhatsApp Penerima (+62)
+                  </label>
+                  <div className="relative">
+                    <Phone
+                      size={14}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400"
+                    />
+                    <input
+                      type="tel"
+                      value={waPhoneInput}
+                      onChange={(e) => setWaPhoneInput(e.target.value)}
+                      onBlur={() => {
+                        if (waPhoneInput.trim()) {
+                          setWaPhoneInput(formatWhatsAppPhone(waPhoneInput));
+                        }
+                      }}
+                      placeholder="+6281234567890"
+                      className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-[#F4F8FB] dark:bg-[#0B172A] border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-[#173B65] dark:text-slate-100 outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Pesan dikirim menggunakan nomor resmi WhatsApp SIMAP: <strong>{SIMAP_WHATSAPP_DISPLAY}</strong>
+                  </p>
+                </div>
+
+                {activeWaModalLoan.whatsappError && (
+                  <p className="text-[11px] text-red-600 dark:text-red-400 font-semibold">
+                    Catatan Gateway: {activeWaModalLoan.whatsappError}
+                  </p>
+                )}
+
+                <pre className="text-[11px] font-sans whitespace-pre-wrap bg-[#F8FBFD] dark:bg-[#0B172A] p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-300 max-h-48 overflow-y-auto">
+                  {waMessage}
+                </pre>
+
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyLoanWa(loanKey, waMessage)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-[#173B65] dark:text-slate-200 hover:border-[#0072BC]"
+                  >
+                    {copiedWaId === loanKey ? (
+                      <>
+                        <Check size={13} className="text-emerald-500" />
+                        Disalin
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={13} />
+                        Salin Pesan
+                      </>
+                    )}
+                  </button>
+
+                  {effectivePhone && (
+                    <a
+                      href={toWaMeLink(effectivePhone, waMessage)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700"
+                    >
+                      <ExternalLink size={13} />
+                      Kirim via WhatsApp Web
+                    </a>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={sendingWaId === loanKey || !effectivePhone}
+                    onClick={() => handleSendLoanWa(activeWaModalLoan, waPhoneInput)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0072BC] text-white text-[11px] font-bold hover:bg-[#173B65] disabled:opacity-50"
+                  >
+                    {sendingWaId === loanKey ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <RefreshCw size={13} />
+                    )}
+                    Kirim WA Otomatis
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Approve / Reject Modal */}
       {decisionLoan && (

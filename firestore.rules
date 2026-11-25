@@ -322,7 +322,9 @@ service cloud.firestore {
                'namaPegawai', 'nip', 'jabatan', 'bidang', 'unitKerja', 'jenisSppd',
                'judulPerjalanan', 'tanggalKeberangkatan', 'tanggalKembali',
                'nomorPrk', 'nomorCoa', 'jenisTransportasi', 'kotaKeberangkatan',
-               'kotaTujuan', 'dokumenPendukung', 'status', 'approvalNotes',
+               'kotaTujuan', 'dokumenPendukung', 'status', 'nomorWhatsapp',
+               'whatsappStatus', 'whatsappProvider', 'whatsappMessageId',
+               'whatsappError', 'whatsappSentAt', 'approvalNotes',
                'approvedByName', 'approvedByUid', 'submittedAt', 'createdAt', 'updatedAt'
              ]) &&
              data.requestNumber is string && data.requestNumber.size() > 0 && data.requestNumber.size() <= 64 &&
@@ -345,6 +347,12 @@ service cloud.firestore {
              data.kotaTujuan is string && data.kotaTujuan.size() > 0 && data.kotaTujuan.size() <= 128 &&
              data.dokumenPendukung is list && data.dokumenPendukung.size() <= 10 &&
              data.status in ['Draft', 'Submitted', 'Menunggu Approval', 'Approved', 'Rejected', 'Completed'] &&
+             (!('nomorWhatsapp' in data) || data.nomorWhatsapp == null || data.nomorWhatsapp == '' || (data.nomorWhatsapp is string && data.nomorWhatsapp.matches('^\\+62[0-9]{8,14}$'))) &&
+             (!('whatsappStatus' in data) || data.whatsappStatus == null || data.whatsappStatus in ['Menunggu Pengiriman', 'Terkirim', 'Gagal']) &&
+             (!('whatsappProvider' in data) || data.whatsappProvider == null || (data.whatsappProvider is string && data.whatsappProvider.size() <= 64)) &&
+             (!('whatsappMessageId' in data) || data.whatsappMessageId == null || (data.whatsappMessageId is string && data.whatsappMessageId.size() <= 200)) &&
+             (!('whatsappError' in data) || data.whatsappError == null || (data.whatsappError is string && data.whatsappError.size() <= 512)) &&
+             (!('whatsappSentAt' in data) || data.whatsappSentAt == null || (data.whatsappSentAt is string && data.whatsappSentAt.size() <= 64)) &&
              (!('approvalNotes' in data) || data.approvalNotes == null || (data.approvalNotes is string && data.approvalNotes.size() <= 512)) &&
              (!('approvedByName' in data) || data.approvedByName == null || (data.approvedByName is string && data.approvedByName.size() <= 256)) &&
              (!('approvedByUid' in data) || data.approvedByUid == null || (data.approvedByUid is string && data.approvedByUid.size() <= 128)) &&
@@ -375,6 +383,14 @@ service cloud.firestore {
                         existing().status in ['Draft', 'Rejected'] &&
                         incoming().status in ['Draft', 'Submitted', 'Menunggu Approval'] &&
                         (!('approvedByUid' in incoming()) || incoming().approvedByUid == existing().get('approvedByUid', null))
+                      ) ||
+                      (
+                        (existing().applicantUid == request.auth.uid || isAdmin()) &&
+                        incoming().status == existing().status &&
+                        incoming().diff(existing()).affectedKeys().hasOnly([
+                          'nomorWhatsapp', 'whatsappStatus', 'whatsappProvider',
+                          'whatsappMessageId', 'whatsappError', 'whatsappSentAt', 'updatedAt'
+                        ])
                       ) ||
                       isAdmin()
                     );
@@ -946,7 +962,9 @@ service cloud.firestore {
                'pemohonEmployeeId', 'pemohonNama', 'pemohonNip', 'pemohonJabatan',
                'atasanLangsungEmployeeId', 'atasanLangsungNama', 'atasanLangsungJabatan',
                'asmanBisnisSupportEmployeeId', 'asmanBisnisSupportNama', 'asmanBisnisSupportJabatan',
-               'perintahJalan', 'status', 'rejectionReason',
+               'perintahJalan', 'status', 'nomorWhatsapp', 'whatsappStatus',
+               'whatsappProvider', 'whatsappMessageId', 'whatsappError', 'whatsappSentAt',
+               'rejectionReason',
                'isTrackingActive', 'currentLat', 'currentLng', 'currentSpeedKmh',
                'lastLocationLabel', 'trackingUpdatedAt', 'trackingHistory',
                'createdByUid', 'createdByEmail', 'createdAt', 'updatedAt'
@@ -973,6 +991,12 @@ service cloud.firestore {
              (!('asmanBisnisSupportJabatan' in data) || data.asmanBisnisSupportJabatan == null || (data.asmanBisnisSupportJabatan is string && data.asmanBisnisSupportJabatan.size() <= 256)) &&
              (!('perintahJalan' in data) || isValidPerintahJalan(data.perintahJalan)) &&
              data.status in ['Menunggu Persetujuan', 'Disetujui', 'Perintah Jalan Terbit', 'Sedang Berpergian', 'Selesai', 'Ditolak'] &&
+             (!('nomorWhatsapp' in data) || data.nomorWhatsapp == null || data.nomorWhatsapp == '' || (data.nomorWhatsapp is string && data.nomorWhatsapp.matches('^\\+62[0-9]{8,14}$'))) &&
+             (!('whatsappStatus' in data) || data.whatsappStatus == null || data.whatsappStatus in ['Menunggu Pengiriman', 'Terkirim', 'Gagal']) &&
+             (!('whatsappProvider' in data) || data.whatsappProvider == null || (data.whatsappProvider is string && data.whatsappProvider.size() <= 64)) &&
+             (!('whatsappMessageId' in data) || data.whatsappMessageId == null || (data.whatsappMessageId is string && data.whatsappMessageId.size() <= 200)) &&
+             (!('whatsappError' in data) || data.whatsappError == null || (data.whatsappError is string && data.whatsappError.size() <= 512)) &&
+             (!('whatsappSentAt' in data) || data.whatsappSentAt == null || (data.whatsappSentAt is string && data.whatsappSentAt.size() <= 64)) &&
              (!('rejectionReason' in data) || data.rejectionReason == null || (data.rejectionReason is string && data.rejectionReason.size() <= 512)) &&
              (!('isTrackingActive' in data) || data.isTrackingActive is bool) &&
              (!('currentLat' in data) || data.currentLat == null || data.currentLat is number) &&
@@ -1010,6 +1034,18 @@ service cloud.firestore {
                         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectionReason', 'updatedAt']) &&
                         incoming().status in ['Menunggu Persetujuan', 'Disetujui', 'Perintah Jalan Terbit', 'Sedang Berpergian', 'Selesai', 'Ditolak'] &&
                         (!('rejectionReason' in incoming()) || incoming().rejectionReason == null || (incoming().rejectionReason is string && incoming().rejectionReason.size() <= 512))
+                      ) ||
+                      (
+                        (isAdmin() || existing().createdByUid == request.auth.uid) &&
+                        isValidVehicleLoanRequest(incoming()) &&
+                        incoming().createdByUid == existing().createdByUid &&
+                        incoming().loanNumber == existing().loanNumber &&
+                        incoming().createdAt == existing().createdAt &&
+                        incoming().status == existing().status &&
+                        incoming().diff(existing()).affectedKeys().hasOnly([
+                          'nomorWhatsapp', 'whatsappStatus', 'whatsappProvider',
+                          'whatsappMessageId', 'whatsappError', 'whatsappSentAt', 'updatedAt'
+                        ])
                       ) ||
                       (
                         isAdmin() &&
