@@ -113,7 +113,21 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
   const [bannerFeedback, setBannerFeedback] = useState<{
     type: 'success' | 'warning' | 'error';
     message: string;
+    failedRequest?: LetterNumberRequest;
   } | null>(null);
+
+  const buildWaMeHref = (req: LetterNumberRequest): string => {
+    const phone = req.nomorWhatsapp.replace(/\D/g, '');
+    const text = buildWhatsAppPreviewMessage({
+      namaPengaju: req.namaPengaju,
+      nomorSurat: req.nomorSurat,
+      nip: req.nip,
+      bidang: req.bidang,
+      tanggalPengajuan: req.tanggalPengajuan,
+      unitLabel: req.unitLabel || LETTER_UNIT_LABELS[req.unitKode],
+    });
+    return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+  };
 
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelPrompt, setShowCancelPrompt] = useState(false);
@@ -188,9 +202,10 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
     } else {
       setBannerFeedback({
         type: 'warning',
-        message: `Nomor surat ${req.nomorSurat} berhasil diterbitkan, namun pengiriman WhatsApp gagal: ${
-          waResult.error || 'Gateway belum terkonfigurasi.'
-        } Gunakan tombol Kirim Ulang pada tabel riwayat.`,
+        message: `Nomor surat ${req.nomorSurat} berhasil diterbitkan, namun notifikasi WhatsApp otomatis belum terkirim: ${
+          waResult.error || 'Gateway belum aktif.'
+        }`,
+        failedRequest: req,
       });
     }
     setActiveView('history');
@@ -213,12 +228,14 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
           message: `Kirim ulang WhatsApp untuk ${req.nomorSurat} gagal: ${
             result.error || 'Gateway tidak merespons.'
           }`,
+          failedRequest: req,
         });
       }
     } catch (err: any) {
       setBannerFeedback({
         type: 'error',
         message: err?.message || 'Gagal mengirim ulang notifikasi WhatsApp.',
+        failedRequest: req,
       });
     } finally {
       setResendingId(null);
@@ -414,7 +431,7 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
           gatewayStatus.configured
             ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300'
             : !gatewayStatus.backendAvailable
-            ? 'bg-red-50/70 dark:bg-red-950/30 border-red-200 dark:border-red-900/60 text-red-800 dark:text-red-300'
+            ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60 text-amber-800 dark:text-amber-300'
             : 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60 text-amber-800 dark:text-amber-300'
         )}
       >
@@ -426,11 +443,11 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
             </span>
           ) : !gatewayStatus.backendAvailable ? (
             <span>
-              <strong>Layanan API WhatsApp Server Belum Aktif (404):</strong> Penerbitan nomor surat tetap aman &amp; atomik. Anda dapat mengirim notifikasi melalui tautan WhatsApp pada Detail Pengajuan, atau jalankan server full-stack (<code className="font-mono font-bold">npm run start</code>).
+              <strong>Pengiriman Otomatis Tidak Tersedia di Mode Preview Statis (HTTP 404):</strong> Penerbitan nomor surat tetap tersimpan aman &amp; atomik. Gunakan tombol <strong>WhatsApp Web</strong> pada tabel/detail untuk mengirim pesan secara langsung, atau jalankan aplikasi melalui URL server full-stack dengan kredensial WhatsApp API aktif.
             </span>
           ) : (
             <span>
-              <strong>Konfigurasi WhatsApp Gateway Diperlukan di Server Environment:</strong> Penerbitan nomor surat tetap berjalan normal &amp; atomik; untuk pengiriman WhatsApp otomatis, lengkapi <code className="font-mono font-bold">WHATSAPP_PHONE_NUMBER_ID</code> + <code className="font-mono font-bold">WHATSAPP_ACCESS_TOKEN</code> atau <code className="font-mono font-bold">WHATSAPP_GATEWAY_URL</code> + <code className="font-mono font-bold">WHATSAPP_GATEWAY_TOKEN</code>.
+              <strong>Gateway WhatsApp API Belum Dikonfigurasi di Server:</strong> Penerbitan nomor surat berjalan normal &amp; atomik. Untuk pengiriman otomatis tanpa klik, pasang kredensial WhatsApp Business API / Gateway di environment server; sementara itu Anda dapat memakai tombol <strong>WhatsApp Web</strong>.
             </span>
           )}
         </div>
@@ -438,8 +455,8 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
           {gatewayStatus.configured
             ? 'Terhubung'
             : !gatewayStatus.backendAvailable
-            ? 'API Tidak Terjangkau'
-            : 'Mode Siaga'}
+            ? 'Mode Alternatif WA Web'
+            : 'Menunggu Kredensial API'}
         </span>
       </div>
 
@@ -447,7 +464,7 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
         <div
           role="status"
           className={cn(
-            'p-4 rounded-2xl border flex items-start justify-between gap-3 text-xs font-bold',
+            'p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold',
             bannerFeedback.type === 'success'
               ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
               : bannerFeedback.type === 'warning'
@@ -463,13 +480,26 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
             )}
             <span>{bannerFeedback.message}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setBannerFeedback(null)}
-            className="p-1 rounded-lg hover:bg-black/5 shrink-0"
-          >
-            <X size={14} />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {bannerFeedback.failedRequest && (
+              <a
+                href={buildWaMeHref(bannerFeedback.failedRequest)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700"
+              >
+                <ExternalLink size={12} />
+                Kirim via WhatsApp Web
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => setBannerFeedback(null)}
+              className="p-1 rounded-lg hover:bg-black/5 shrink-0"
+            >
+              <X size={14} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -1009,16 +1039,28 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
                         <td className="py-3.5 px-4 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5">
                             {req.whatsappStatus === 'Gagal' && (
-                              <button
-                                type="button"
-                                onClick={() => handleResendWa(req)}
-                                disabled={resendingId === id}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-bold hover:bg-amber-100 disabled:opacity-50"
-                                title="Kirim Ulang Notifikasi WhatsApp"
-                              >
-                                <RefreshCw size={12} className={resendingId === id ? 'animate-spin' : ''} />
-                                Kirim Ulang
-                              </button>
+                              <>
+                                <a
+                                  href={buildWaMeHref(req)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold hover:bg-emerald-100"
+                                  title="Kirim pesan terformat langsung via WhatsApp Web/App"
+                                >
+                                  <ExternalLink size={12} />
+                                  WA Web
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => handleResendWa(req)}
+                                  disabled={resendingId === id}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-bold hover:bg-amber-100 disabled:opacity-50"
+                                  title="Kirim Ulang Notifikasi WhatsApp Otomatis"
+                                >
+                                  <RefreshCw size={12} className={resendingId === id ? 'animate-spin' : ''} />
+                                  Kirim Ulang
+                                </button>
+                              </>
                             )}
                             <button
                               type="button"

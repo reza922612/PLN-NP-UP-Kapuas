@@ -257,7 +257,7 @@ export function useLetterNumbers(enabled = true) {
         } else {
           const fallback404 =
             resp.status === 404
-              ? 'Endpoint layanan WhatsApp server tidak terjangkau (HTTP 404). Pastikan server backend Node/Express aktif atau gunakan tombol WhatsApp Web sebagai alternatif, lalu coba Kirim Ulang.'
+              ? 'Endpoint WhatsApp server tidak tersedia pada URL/hosting statis ini (HTTP 404). Gunakan tombol WhatsApp Web pada baris riwayat/detail, atau jalankan dari server full-stack dengan kredensial WhatsApp API terpasang.'
               : `Pengiriman WhatsApp gagal (HTTP ${resp.status}). Silakan klik Kirim Ulang.`;
           dispatchResult = {
             sent: false,
