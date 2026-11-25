@@ -143,6 +143,27 @@ async function startServer() {
   // JSON parsing middleware
   app.use(express.json({ limit: "64kb" }));
 
+  // Explicit CORS support for /api/* when frontend calls from an external or static host
+  const configuredOrigins = (process.env.CORS_ALLOWED_ORIGIN || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  app.use("/api", (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && configuredOrigins.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Authorization,Content-Type");
+    }
+    if (req.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
+
   // Explicitly allow WebAuthn platform authenticators in same-origin contexts
   app.use((req, res, next) => {
     res.setHeader(

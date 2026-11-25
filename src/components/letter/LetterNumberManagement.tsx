@@ -110,15 +110,15 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
 
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedWaId, setCopiedWaId] = useState<string | null>(null);
   const [bannerFeedback, setBannerFeedback] = useState<{
     type: 'success' | 'warning' | 'error';
     message: string;
     failedRequest?: LetterNumberRequest;
   } | null>(null);
 
-  const buildWaMeHref = (req: LetterNumberRequest): string => {
-    const phone = req.nomorWhatsapp.replace(/\D/g, '');
-    const text = buildWhatsAppPreviewMessage({
+  const buildWaMessageText = (req: LetterNumberRequest): string =>
+    buildWhatsAppPreviewMessage({
       namaPengaju: req.namaPengaju,
       nomorSurat: req.nomorSurat,
       nip: req.nip,
@@ -126,7 +126,21 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
       tanggalPengajuan: req.tanggalPengajuan,
       unitLabel: req.unitLabel || LETTER_UNIT_LABELS[req.unitKode],
     });
-    return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+
+  const buildWaMeHref = (req: LetterNumberRequest): string => {
+    const phone = req.nomorWhatsapp.replace(/\D/g, '');
+    return `https://wa.me/${phone}?text=${encodeURIComponent(buildWaMessageText(req))}`;
+  };
+
+  const handleCopyWaMessage = async (req: LetterNumberRequest) => {
+    const id = req.requestId || req.id || req.nomorSurat;
+    try {
+      await navigator.clipboard.writeText(buildWaMessageText(req));
+      setCopiedWaId(id);
+      setTimeout(() => setCopiedWaId((prev) => (prev === id ? null : prev)), 2500);
+    } catch {
+      // ignore clipboard restrictions
+    }
   };
 
   const [cancelReason, setCancelReason] = useState('');
@@ -480,17 +494,39 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
             )}
             <span>{bannerFeedback.message}</span>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             {bannerFeedback.failedRequest && (
-              <a
-                href={buildWaMeHref(bannerFeedback.failedRequest)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700"
-              >
-                <ExternalLink size={12} />
-                Kirim via WhatsApp Web
-              </a>
+              <>
+                <a
+                  href={buildWaMeHref(bannerFeedback.failedRequest)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700"
+                >
+                  <ExternalLink size={12} />
+                  Kirim via WhatsApp Web
+                </a>
+                <button
+                  type="button"
+                  onClick={() => handleCopyWaMessage(bannerFeedback.failedRequest!)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#173B65] dark:text-slate-100 text-[11px] font-bold hover:border-[#0072BC]"
+                >
+                  {copiedWaId ===
+                  (bannerFeedback.failedRequest.requestId ||
+                    bannerFeedback.failedRequest.id ||
+                    bannerFeedback.failedRequest.nomorSurat) ? (
+                    <>
+                      <Check size={12} className="text-emerald-600" />
+                      Pesan Disalin
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={12} />
+                      Salin Pesan
+                    </>
+                  )}
+                </button>
+              </>
             )}
             <button
               type="button"
@@ -764,17 +800,28 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
                             <strong>{r.namaPengaju}</strong> ({r.nip}) · {r.bidang} · {r.tanggalPengajuan}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
                           {r.whatsappStatus === 'Gagal' && (
-                            <button
-                              type="button"
-                              onClick={() => handleResendWa(r)}
-                              disabled={resendingId === id}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-bold hover:bg-amber-100"
-                            >
-                              <RefreshCw size={12} className={resendingId === id ? 'animate-spin' : ''} />
-                              Kirim Ulang WA
-                            </button>
+                            <>
+                              <a
+                                href={buildWaMeHref(r)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700"
+                              >
+                                <ExternalLink size={12} />
+                                WA Web
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => handleResendWa(r)}
+                                disabled={resendingId === id}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-bold hover:bg-amber-100"
+                              >
+                                <RefreshCw size={12} className={resendingId === id ? 'animate-spin' : ''} />
+                                Kirim Ulang WA
+                              </button>
+                            </>
                           )}
                           <button
                             type="button"
@@ -1230,6 +1277,39 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
                   <p className="text-[11px] text-red-600 dark:text-red-400 font-semibold">
                     Catatan Gateway: {activeSelectedDetail.whatsappError}
                   </p>
+                )}
+                {activeSelectedDetail.whatsappStatus === 'Gagal' && (
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <a
+                      href={buildWaMeHref(activeSelectedDetail)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700"
+                    >
+                      <ExternalLink size={12} />
+                      Kirim Langsung via WhatsApp Web
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyWaMessage(activeSelectedDetail)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-[#0B172A] border border-slate-200 dark:border-slate-700 text-[#173B65] dark:text-slate-200 text-[11px] font-bold hover:border-[#0072BC]"
+                    >
+                      {copiedWaId ===
+                      (activeSelectedDetail.requestId ||
+                        activeSelectedDetail.id ||
+                        activeSelectedDetail.nomorSurat) ? (
+                        <>
+                          <Check size={12} className="text-emerald-500" />
+                          Teks Pesan Disalin
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={12} />
+                          Salin Teks Pesan WA
+                        </>
+                      )}
+                    </button>
+                  </div>
                 )}
                 <pre className="text-[11px] font-sans whitespace-pre-wrap bg-[#F8FBFD] dark:bg-[#0B172A] p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300">
                   {buildWhatsAppPreviewMessage({

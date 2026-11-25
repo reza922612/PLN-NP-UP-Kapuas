@@ -70,6 +70,17 @@ const getSortableTime = (val: any): number => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 
+const resolveApiBaseUrl = (): string => {
+  const raw = String((import.meta as any).env?.VITE_API_BASE_URL || '').trim();
+  if (!raw) return '';
+  return raw.replace(/\/+$/, '');
+};
+
+const buildApiUrl = (apiPath: string): string => {
+  const base = resolveApiBaseUrl();
+  return base ? `${base}${apiPath}` : apiPath;
+};
+
 export function useLetterNumbers(enabled = true) {
   const { user, profile } = useAuth();
   const [requests, setRequests] = useState<LetterNumberRequest[]>([]);
@@ -91,7 +102,7 @@ export function useLetterNumbers(enabled = true) {
     }
     try {
       const idToken = await currentUser.getIdToken();
-      const resp = await fetch('/api/whatsapp/status', {
+      const resp = await fetch(buildApiUrl('/api/whatsapp/status'), {
         headers: { Authorization: `Bearer ${idToken}` },
       });
       const contentType = resp.headers.get('content-type') || '';
@@ -217,7 +228,7 @@ export function useLetterNumbers(enabled = true) {
 
       try {
         const idToken = await currentUser.getIdToken();
-        const resp = await fetch('/api/whatsapp/send-letter-notification', {
+        const resp = await fetch(buildApiUrl('/api/whatsapp/send-letter-notification'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -255,9 +266,10 @@ export function useLetterNumbers(enabled = true) {
             error: null,
           };
         } else {
+          const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
           const fallback404 =
             resp.status === 404
-              ? 'Endpoint WhatsApp server tidak tersedia pada URL/hosting statis ini (HTTP 404). Gunakan tombol WhatsApp Web pada baris riwayat/detail, atau jalankan dari server full-stack dengan kredensial WhatsApp API terpasang.'
+              ? `Endpoint API WhatsApp tidak tersedia di hosting statis (${currentOrigin || 'HTTP 404'}). Penerbitan nomor tetap aman tersimpan. Gunakan tombol WhatsApp Web di bawah untuk mengirim pesan langsung, atau akses melalui server Node.js (npm run start) dengan kredensial WhatsApp API aktif.`
               : `Pengiriman WhatsApp gagal (HTTP ${resp.status}). Silakan klik Kirim Ulang.`;
           dispatchResult = {
             sent: false,
