@@ -210,7 +210,7 @@ service cloud.firestore {
       return data.keys().hasAll(['action', 'entityType', 'entityId', 'entityName', 'description', 'actorUid', 'actorEmail', 'actorName', 'createdAt']) &&
              data.keys().hasOnly(['action', 'entityType', 'entityId', 'entityName', 'description', 'actorUid', 'actorEmail', 'actorName', 'actorRole', 'createdAt']) &&
              data.action in ['CREATE', 'UPDATE', 'DELETE'] &&
-             data.entityType in ['employee', 'unit', 'system', 'sppd', 'knowledge', 'publikasi', 'vehicle'] &&
+             data.entityType in ['employee', 'unit', 'system', 'sppd', 'knowledge', 'publikasi', 'vehicle', 'letter_number'] &&
              data.entityId is string && data.entityId.size() > 0 && data.entityId.size() <= 128 &&
              data.entityName is string && data.entityName.size() > 0 && data.entityName.size() <= 256 &&
              data.description is string && data.description.size() > 0 && data.description.size() <= 512 &&
@@ -961,7 +961,7 @@ service cloud.firestore {
              (!('currentSpeedKmh' in data) || data.currentSpeedKmh == null || data.currentSpeedKmh is number) &&
              (!('lastLocationLabel' in data) || data.lastLocationLabel == null || (data.lastLocationLabel is string && data.lastLocationLabel.size() <= 256)) &&
              (!('trackingUpdatedAt' in data) || data.trackingUpdatedAt == null || (data.trackingUpdatedAt is string && data.trackingUpdatedAt.size() <= 64)) &&
-             (!('trackingHistory' in data) || (data.trackingHistory is list && data.trackingHistory.size() <= 60)) &&
+             (!('trackingHistory' in data) || data.trackingHistory == null || (data.trackingHistory is list && data.trackingHistory.size() <= 60)) &&
              data.createdByUid is string && data.createdByUid.size() > 0 && data.createdByUid.size() <= 128 &&
              data.createdByEmail is string && data.createdByEmail.size() > 0 && data.createdByEmail.size() <= 256 &&
              data.createdAt is timestamp &&
@@ -1020,6 +1020,149 @@ service cloud.firestore {
                             incoming().items.size() <= 5000 &&
                             incoming().updatedAt == request.time;
       allow delete: if isValidId(dirId) && hasRole('super_admin');
+    }
+
+    // 21. Atomic Letter Number Counters (Per Unit & Year)
+    function isValidLetterUnit(unitKode) {
+      return unitKode in ['UPKS', 'ULSR', 'ULST', 'ULKP', 'ULSS'];
+    }
+
+    function isValidLetterCounter(data, counterId) {
+      return data.keys().hasAll(['counterId', 'unitKode', 'tahun', 'lastSequence', 'lastRequestId', 'updatedAt']) &&
+             data.keys().hasOnly(['counterId', 'unitKode', 'tahun', 'lastSequence', 'lastRequestId', 'updatedAt']) &&
+             data.counterId == counterId &&
+             isValidLetterUnit(data.unitKode) &&
+             data.tahun is int && data.tahun >= 2024 && data.tahun <= 2100 &&
+             data.lastSequence is int && data.lastSequence >= 1 && data.lastSequence <= 999999 &&
+             isValidId(data.lastRequestId) &&
+             data.updatedAt == request.time;
+    }
+
+    match /letter_number_counters/{counterId} {
+      allow get: if isValidId(counterId) && isRegisteredUser();
+      allow list: if isRegisteredUser();
+      allow create: if isValidId(counterId) && isRegisteredUser() &&
+                    isValidLetterCounter(incoming(), counterId) &&
+                    incoming().lastSequence == 1 &&
+                    existsAfter(/databases/$(database)/documents/letter_number_requests/$(incoming().lastRequestId));
+      allow update: if isValidId(counterId) && isRegisteredUser() &&
+                    isValidLetterCounter(incoming(), counterId) &&
+                    incoming().unitKode == existing().unitKode &&
+                    incoming().tahun == existing().tahun &&
+                    incoming().lastSequence == existing().lastSequence + 1 &&
+                    existsAfter(/databases/$(database)/documents/letter_number_requests/$(incoming().lastRequestId));
+      allow delete: if false;
+    }
+
+    // 22. Official Letter & Berita Acara Numbering Records
+    function isValidLetterClassificationMatch(kodeSurat, kodeKlasifikasi) {
+      return (kodeSurat == 'SKT' && kodeKlasifikasi == 'SDM.15.01') ||
+             (kodeSurat == 'BA' && kodeKlasifikasi == 'KEU.01.02') ||
+             (kodeSurat == 'BAPP' && kodeKlasifikasi == 'KEU.01.02') ||
+             (kodeSurat == 'BATK' && kodeKlasifikasi in ['KEU.01.02', 'SDM.15.01']);
+    }
+
+    function isValidLetterNumberRequest(data, letterId) {
+      return data.keys().hasAll([
+               'requestId', 'counterId', 'sequenceNumber', 'sequenceLabel', 'nomorSurat',
+               'namaPengaju', 'nip', 'bidang', 'tanggalPengajuan', 'nomorWhatsapp',
+               'kodeSurat', 'kodeKlasifikasi', 'unitKode', 'unitLabel', 'tahun',
+               'status', 'whatsappStatus', 'createdByUid', 'createdByEmail',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'requestId', 'counterId', 'sequenceNumber', 'sequenceLabel', 'nomorSurat',
+               'applicantEmployeeId', 'namaPengaju', 'nip', 'bidang', 'tanggalPengajuan',
+               'nomorWhatsapp', 'kodeSurat', 'kodeKlasifikasi', 'unitKode', 'unitLabel',
+               'tahun', 'perihal', 'status', 'cancellationReason', 'cancelledAt',
+               'whatsappStatus', 'whatsappProvider', 'whatsappMessageId',
+               'whatsappError', 'whatsappSentAt', 'createdByUid', 'createdByEmail',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.requestId == letterId &&
+             isValidId(data.counterId) &&
+             data.sequenceNumber is int && data.sequenceNumber >= 1 && data.sequenceNumber <= 999999 &&
+             data.sequenceLabel is string && data.sequenceLabel.matches('^[0-9]{3,6}$') &&
+             data.nomorSurat is string && data.nomorSurat.size() >= 10 && data.nomorSurat.size() <= 128 &&
+             data.nomorSurat.matches('^[0-9]{3,6}\\.(SKT|BA|BAPP|BATK)/(KEU\\.01\\.02|SDM\\.15\\.01)/(UPKS|ULSR|ULST|ULKP|ULSS)/20[2-9][0-9]$') &&
+             (!('applicantEmployeeId' in data) || data.applicantEmployeeId == null || (data.applicantEmployeeId is string && data.applicantEmployeeId.size() <= 128)) &&
+             data.namaPengaju is string && data.namaPengaju.size() > 0 && data.namaPengaju.size() <= 256 &&
+             data.nip is string && data.nip.size() > 0 && data.nip.size() <= 64 &&
+             isValidSppdBidang(data.bidang) &&
+             data.tanggalPengajuan is string && data.tanggalPengajuan.size() > 0 && data.tanggalPengajuan.size() <= 32 &&
+             data.nomorWhatsapp is string && data.nomorWhatsapp.matches('^\\+62[0-9]{8,14}$') &&
+             data.kodeSurat in ['SKT', 'BA', 'BAPP', 'BATK'] &&
+             data.kodeKlasifikasi in ['KEU.01.02', 'ORG.00.02', 'SDM.15.01'] &&
+             isValidLetterClassificationMatch(data.kodeSurat, data.kodeKlasifikasi) &&
+             isValidLetterUnit(data.unitKode) &&
+             data.unitLabel is string && data.unitLabel.size() > 0 && data.unitLabel.size() <= 128 &&
+             data.tahun is int && data.tahun >= 2024 && data.tahun <= 2100 &&
+             (!('perihal' in data) || data.perihal == null || (data.perihal is string && data.perihal.size() <= 300)) &&
+             data.status in ['Diterbitkan', 'Dibatalkan'] &&
+             (!('cancellationReason' in data) || data.cancellationReason == null || (data.cancellationReason is string && data.cancellationReason.size() <= 500)) &&
+             (!('cancelledAt' in data) || data.cancelledAt == null || (data.cancelledAt is string && data.cancelledAt.size() <= 64)) &&
+             data.whatsappStatus in ['Menunggu Pengiriman', 'Terkirim', 'Gagal'] &&
+             (!('whatsappProvider' in data) || data.whatsappProvider == null || (data.whatsappProvider is string && data.whatsappProvider.size() <= 64)) &&
+             (!('whatsappMessageId' in data) || data.whatsappMessageId == null || (data.whatsappMessageId is string && data.whatsappMessageId.size() <= 200)) &&
+             (!('whatsappError' in data) || data.whatsappError == null || (data.whatsappError is string && data.whatsappError.size() <= 512)) &&
+             (!('whatsappSentAt' in data) || data.whatsappSentAt == null || (data.whatsappSentAt is string && data.whatsappSentAt.size() <= 64)) &&
+             data.createdByUid is string && data.createdByUid.size() > 0 && data.createdByUid.size() <= 128 &&
+             data.createdByEmail is string && data.createdByEmail.size() > 0 && data.createdByEmail.size() <= 256 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    function hasValidCounterLink(data, letterId) {
+      let counterRef = getAfter(/databases/$(database)/documents/letter_number_counters/$(data.counterId)).data;
+      return existsAfter(/databases/$(database)/documents/letter_number_counters/$(data.counterId)) &&
+             counterRef.unitKode == data.unitKode &&
+             counterRef.tahun == data.tahun &&
+             counterRef.lastSequence == data.sequenceNumber &&
+             counterRef.lastRequestId == letterId;
+    }
+
+    match /letter_number_requests/{letterId} {
+      allow get: if isValidId(letterId) && (isViewer() || (isSignedIn() && existing().createdByUid == request.auth.uid));
+      allow list: if isViewer() || (isSignedIn() && resource.data.createdByUid == request.auth.uid);
+      allow create: if isValidId(letterId) && isRegisteredUser() &&
+                    isValidLetterNumberRequest(incoming(), letterId) &&
+                    incoming().createdByUid == request.auth.uid &&
+                    incoming().status == 'Diterbitkan' &&
+                    incoming().whatsappStatus == 'Menunggu Pengiriman' &&
+                    (!('whatsappMessageId' in incoming()) || incoming().whatsappMessageId == null) &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time &&
+                    hasValidCounterLink(incoming(), letterId);
+      allow update: if isValidId(letterId) && isRegisteredUser() &&
+                    isValidLetterNumberRequest(incoming(), letterId) &&
+                    incoming().requestId == existing().requestId &&
+                    incoming().counterId == existing().counterId &&
+                    incoming().sequenceNumber == existing().sequenceNumber &&
+                    incoming().sequenceLabel == existing().sequenceLabel &&
+                    incoming().nomorSurat == existing().nomorSurat &&
+                    incoming().kodeSurat == existing().kodeSurat &&
+                    incoming().kodeKlasifikasi == existing().kodeKlasifikasi &&
+                    incoming().unitKode == existing().unitKode &&
+                    incoming().tahun == existing().tahun &&
+                    incoming().createdByUid == existing().createdByUid &&
+                    incoming().createdByEmail == existing().createdByEmail &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time &&
+                    (isAdmin() || existing().createdByUid == request.auth.uid) &&
+                    (
+                      incoming().diff(existing()).affectedKeys().hasOnly([
+                        'whatsappStatus', 'whatsappProvider', 'whatsappMessageId',
+                        'whatsappError', 'whatsappSentAt', 'updatedAt'
+                      ]) ||
+                      (
+                        existing().status == 'Diterbitkan' &&
+                        incoming().status == 'Dibatalkan' &&
+                        incoming().diff(existing()).affectedKeys().hasOnly([
+                          'status', 'cancellationReason', 'cancelledAt', 'updatedAt'
+                        ])
+                      )
+                    );
+      allow delete: if false;
     }
   }
 }

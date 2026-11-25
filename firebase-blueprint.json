@@ -128,7 +128,7 @@
       "type": "object",
       "properties": {
         "action": { "type": "string", "enum": ["CREATE", "UPDATE", "DELETE"] },
-        "entityType": { "type": "string", "enum": ["employee", "unit", "system", "sppd", "knowledge", "publikasi", "vehicle"] },
+        "entityType": { "type": "string", "enum": ["employee", "unit", "system", "sppd", "knowledge", "publikasi", "vehicle", "letter_number"] },
         "entityId": { "type": "string", "maxLength": 128 },
         "entityName": { "type": "string", "maxLength": 256 },
         "description": { "type": "string", "maxLength": 512 },
@@ -633,6 +633,62 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["dirId", "items", "updatedAt"]
+    },
+    "LetterNumberCounter": {
+      "title": "LetterNumberCounter",
+      "description": "Atomic per-unit, per-year sequence counter preventing duplicate letter numbers",
+      "type": "object",
+      "properties": {
+        "counterId": { "type": "string", "maxLength": 32 },
+        "unitKode": { "type": "string", "enum": ["UPKS", "ULSR", "ULST", "ULKP", "ULSS"] },
+        "tahun": { "type": "number" },
+        "lastSequence": { "type": "number" },
+        "lastRequestId": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["counterId", "unitKode", "tahun", "lastSequence", "lastRequestId", "updatedAt"]
+    },
+    "LetterNumberRequest": {
+      "title": "LetterNumberRequest",
+      "description": "Issued letter / Berita Acara numbering record with WhatsApp delivery tracking",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string", "maxLength": 128 },
+        "counterId": { "type": "string", "maxLength": 32 },
+        "sequenceNumber": { "type": "number" },
+        "sequenceLabel": { "type": "string", "maxLength": 16 },
+        "nomorSurat": { "type": "string", "maxLength": 128 },
+        "applicantEmployeeId": { "type": "string", "maxLength": 128 },
+        "namaPengaju": { "type": "string", "maxLength": 256 },
+        "nip": { "type": "string", "maxLength": 64 },
+        "bidang": { "type": "string", "maxLength": 128 },
+        "tanggalPengajuan": { "type": "string", "format": "date", "maxLength": 32 },
+        "nomorWhatsapp": { "type": "string", "maxLength": 32 },
+        "kodeSurat": { "type": "string", "enum": ["SKT", "BA", "BAPP", "BATK"] },
+        "kodeKlasifikasi": { "type": "string", "enum": ["KEU.01.02", "ORG.00.02", "SDM.15.01"] },
+        "unitKode": { "type": "string", "enum": ["UPKS", "ULSR", "ULST", "ULKP", "ULSS"] },
+        "unitLabel": { "type": "string", "maxLength": 128 },
+        "tahun": { "type": "number" },
+        "perihal": { "type": "string", "maxLength": 300 },
+        "status": { "type": "string", "enum": ["Diterbitkan", "Dibatalkan"] },
+        "cancellationReason": { "type": "string", "maxLength": 500 },
+        "cancelledAt": { "type": "string", "maxLength": 64 },
+        "whatsappStatus": { "type": "string", "enum": ["Menunggu Pengiriman", "Terkirim", "Gagal"] },
+        "whatsappProvider": { "type": "string", "maxLength": 64 },
+        "whatsappMessageId": { "type": "string", "maxLength": 200 },
+        "whatsappError": { "type": "string", "maxLength": 512 },
+        "whatsappSentAt": { "type": "string", "maxLength": 64 },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdByEmail": { "type": "string", "format": "email", "maxLength": 256 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "requestId", "counterId", "sequenceNumber", "sequenceLabel", "nomorSurat",
+        "namaPengaju", "nip", "bidang", "tanggalPengajuan", "nomorWhatsapp",
+        "kodeSurat", "kodeKlasifikasi", "unitKode", "unitLabel", "tahun",
+        "status", "whatsappStatus", "createdByUid", "createdByEmail", "createdAt", "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -739,6 +795,14 @@
     "employee_directory/{dirId}": {
       "schema": "EmployeeDirectory",
       "description": "Non-PII employee directory options for authenticated users"
+    },
+    "letter_number_counters/{counterId}": {
+      "schema": "LetterNumberCounter",
+      "description": "Atomic counter documents keyed by {unitKode}_{tahun}"
+    },
+    "letter_number_requests/{letterId}": {
+      "schema": "LetterNumberRequest",
+      "description": "Official issued letter & Berita Acara numbering records and WhatsApp statuses"
     }
   }
 }

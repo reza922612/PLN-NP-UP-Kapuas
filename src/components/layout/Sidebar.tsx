@@ -21,6 +21,7 @@ import {
   Landmark,
   Newspaper,
   Car,
+  FileCheck2,
   X,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -63,6 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         { id: 'employees', label: 'Data Pegawai', icon: Users },
         { id: 'add-employee', label: 'Input Pegawai', icon: UserPlus, hidden: role === 'viewer' },
         { id: 'sppd', label: 'Pengajuan SPPD', icon: Plane },
+        { id: 'letter-numbers', label: 'Nomor Surat & BA', icon: FileCheck2 },
         { id: 'vehicles', label: 'Kendaraan Dinas', icon: Car },
         { id: 'certifications', label: 'Data Sertifikasi', icon: Award },
         { id: 'org-structure', label: 'Struktur Organisasi', icon: ShieldCheck },

@@ -303,6 +303,12 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
       });
       setDecisionLoan(null);
       setRejectReason('');
+    } catch (err: any) {
+      setBanner({
+        type: 'error',
+        message: err?.message || 'Gagal memproses persetujuan pengajuan kendaraan.',
+      });
+      setDecisionLoan(null);
     } finally {
       setDecisionSubmitting(false);
     }
@@ -321,6 +327,12 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
       }
       setDeleteTarget(null);
       setBanner({ type: 'success', message: 'Data berhasil dihapus.' });
+    } catch (err: any) {
+      setBanner({
+        type: 'error',
+        message: err?.message || 'Gagal menghapus data.',
+      });
+      setDeleteTarget(null);
     } finally {
       setDeleting(false);
     }

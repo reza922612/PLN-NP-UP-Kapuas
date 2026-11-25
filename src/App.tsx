@@ -28,6 +28,7 @@ import BroadcastToastContainer from './components/common/BroadcastToastContainer
 import KnowledgeGovernanceView from './components/knowledge/KnowledgeGovernanceView';
 import PublicationManagementView from './components/dashboard/PublicationManagementView';
 import VehicleLoanManagement from './components/vehicle/VehicleLoanManagement';
+import LetterNumberManagement from './components/letter/LetterNumberManagement';
 import LandingPage from './components/public/LandingPage';
 import PublicEmployeeVerify from './components/public/PublicEmployeeVerify';
 import EmployeeDashboard from './components/employee/EmployeeDashboard';
@@ -44,6 +45,7 @@ const TAB_TITLES: Record<string, string> = {
   employees: 'Data Pegawai',
   'add-employee': 'Input Pegawai Baru',
   sppd: 'Pengajuan SPPD',
+  'letter-numbers': 'Pengajuan Nomor Surat & Berita Acara',
   vehicles: 'Peminjaman & Tracking Kendaraan Dinas',
   certifications: 'Data Sertifikasi',
   'org-structure': 'Struktur Organisasi',
@@ -316,6 +318,13 @@ const MainApp: React.FC = () => {
       case 'vehicles':
         return (
           <VehicleLoanManagement
+            employees={employees}
+            canManage={profile?.role === 'admin' || profile?.role === 'super_admin'}
+          />
+        );
+      case 'letter-numbers':
+        return (
+          <LetterNumberManagement
             employees={employees}
             canManage={profile?.role === 'admin' || profile?.role === 'super_admin'}
           />

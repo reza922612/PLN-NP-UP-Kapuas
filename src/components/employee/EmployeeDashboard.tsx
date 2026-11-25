@@ -15,6 +15,7 @@ import {
   Fingerprint,
   Plane,
   Car,
+  FileCheck2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { signOut } from 'firebase/auth';
@@ -25,12 +26,13 @@ import BiometricSettingsCard from '../common/BiometricSettingsCard';
 import SppdManagement from '../sppd/SppdManagement';
 import KnowledgeGovernanceView from '../knowledge/KnowledgeGovernanceView';
 import VehicleLoanManagement from '../vehicle/VehicleLoanManagement';
+import LetterNumberManagement from '../letter/LetterNumberManagement';
 
 const EmployeeDashboard: React.FC = () => {
   const { profile } = useAuth();
   const [employeeData, setEmployeeData] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'biometric' | 'sppd' | 'vehicles' | 'knowledge'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'biometric' | 'sppd' | 'letter-numbers' | 'vehicles' | 'knowledge'>('overview');
   const [knowledgeSection, setKnowledgeSection] = useState<KnowledgeSectionType>('knowledge-sharing');
 
   useEffect(() => {
@@ -173,6 +175,19 @@ const EmployeeDashboard: React.FC = () => {
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab('letter-numbers')}
+              className={cn(
+                'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all',
+                activeTab === 'letter-numbers'
+                  ? 'bg-[#0072BC] text-white shadow-sm'
+                  : 'bg-white dark:bg-[#0E1A2E] text-slate-500 dark:text-slate-300 hover:text-[#173B65] border border-slate-200/80 dark:border-slate-800'
+              )}
+            >
+              <FileCheck2 size={18} />
+              Nomor Surat &amp; BA
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab('vehicles')}
               className={cn(
                 'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all',
@@ -238,6 +253,13 @@ const EmployeeDashboard: React.FC = () => {
               <EmployeeDetail employee={employeeData} onBack={() => {}} />
             ) : activeTab === 'sppd' ? (
               <SppdManagement defaultEmployee={employeeData} canApprove={false} compactTitle />
+            ) : activeTab === 'letter-numbers' ? (
+              <LetterNumberManagement
+                employees={[employeeData]}
+                defaultEmployee={employeeData}
+                canManage={false}
+                compactHeader
+              />
             ) : activeTab === 'vehicles' ? (
               <VehicleLoanManagement
                 employees={[employeeData]}

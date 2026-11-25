@@ -45,9 +45,21 @@ export function calculateTimeDurationLabel(startHHMM: string, endHHMM: string): 
   return `${hours} Jam ${mins} Menit (${decimalHours} Jam)`;
 }
 
+const clampStr = (val: string | null | undefined, maxLen: number): string => {
+  const s = (val || '').trim();
+  return s.length > maxLen ? s.slice(0, maxLen) : s;
+};
+
+const safeNonNegativeInt = (val: unknown, fallback = 0): number => {
+  const num = Number(val);
+  if (!Number.isFinite(num) || num < 0) return fallback;
+  return Math.round(num);
+};
+
 export interface SaveVehicleLoanInput {
   existingId?: string;
   existingLoanNumber?: string;
+  existingStatus?: VehicleLoanStatus;
   nama: string;
   jumlahPenumpang: number;
   tujuan: string;
@@ -175,14 +187,14 @@ export const useVehicleManagement = (enabled: boolean = true) => {
   ) => {
     try {
       const payload = {
-        noPol: input.noPol.trim().toUpperCase(),
-        namaKendaraan: input.namaKendaraan.trim(),
-        jenisKendaraan: input.jenisKendaraan.trim() || 'MPV',
-        kapasitasPenumpang: Number(input.kapasitasPenumpang) || 4,
-        unitKerja: input.unitKerja.trim() || 'UP Kapuas',
+        noPol: clampStr(input.noPol, 32).toUpperCase(),
+        namaKendaraan: clampStr(input.namaKendaraan, 150),
+        jenisKendaraan: clampStr(input.jenisKendaraan, 64) || 'MPV',
+        kapasitasPenumpang: Math.min(100, Math.max(1, safeNonNegativeInt(input.kapasitasPenumpang, 4))),
+        unitKerja: clampStr(input.unitKerja, 128) || 'UP Kapuas',
         status: input.status || 'Tersedia',
-        tahun: input.tahun?.trim() || null,
-        kmTerakhir: Math.max(0, Number(input.kmTerakhir) || 0),
+        tahun: clampStr(input.tahun, 8) || null,
+        kmTerakhir: safeNonNegativeInt(input.kmTerakhir, 0),
         updatedAt: serverTimestamp(),
       };
 
@@ -236,11 +248,11 @@ export const useVehicleManagement = (enabled: boolean = true) => {
   ) => {
     try {
       const payload = {
-        namaDriver: input.namaDriver.trim(),
-        noHp: input.noHp.trim(),
-        noSim: input.noSim.trim(),
-        employeeId: input.employeeId || null,
-        unitKerja: input.unitKerja.trim() || 'UP Kapuas',
+        namaDriver: clampStr(input.namaDriver, 200),
+        noHp: clampStr(input.noHp, 32),
+        noSim: clampStr(input.noSim, 64),
+        employeeId: clampStr(input.employeeId, 128) || null,
+        unitKerja: clampStr(input.unitKerja, 128) || 'UP Kapuas',
         status: input.status || 'Aktif',
         updatedAt: serverTimestamp(),
       };
@@ -296,33 +308,42 @@ export const useVehicleManagement = (enabled: boolean = true) => {
   const saveVehicleLoan = async (input: SaveVehicleLoanInput): Promise<string> => {
     if (!user) throw new Error('Pengguna belum terautentikasi.');
 
-    const durasiJam = calculateTimeDurationLabel(input.jamMulai, input.jamSelesai);
-    const loanNumber =
+    const durasiJam = clampStr(calculateTimeDurationLabel(input.jamMulai, input.jamSelesai), 64);
+    const loanNumber = clampStr(
       input.existingLoanNumber ||
-      `PKD-${new Date().getFullYear()}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+        `PKD-${new Date().getFullYear()}-${String(Math.floor(1000 + Math.random() * 9000))}`,
+      64
+    );
+
+    const nextEditStatus: VehicleLoanStatus =
+      input.existingId &&
+      input.existingStatus &&
+      input.existingStatus !== 'Ditolak'
+        ? input.existingStatus
+        : 'Menunggu Persetujuan';
 
     const basePayload = {
       loanNumber,
-      nama: input.nama.trim(),
-      jumlahPenumpang: Math.max(1, Number(input.jumlahPenumpang) || 1),
-      tujuan: input.tujuan.trim(),
-      tanggalDipergunakan: input.tanggalDipergunakan,
-      bidang: input.bidang,
-      keperluan: input.keperluan.trim(),
-      jamMulai: input.jamMulai,
-      jamSelesai: input.jamSelesai,
+      nama: clampStr(input.nama, 256),
+      jumlahPenumpang: Math.min(100, Math.max(1, safeNonNegativeInt(input.jumlahPenumpang, 1))),
+      tujuan: clampStr(input.tujuan, 300),
+      tanggalDipergunakan: clampStr(input.tanggalDipergunakan, 32),
+      bidang: clampStr(input.bidang, 128),
+      keperluan: clampStr(input.keperluan, 500),
+      jamMulai: clampStr(input.jamMulai, 16),
+      jamSelesai: clampStr(input.jamSelesai, 16),
       durasiJam,
-      pemohonEmployeeId: input.pemohonEmployeeId || null,
-      pemohonNama: input.pemohonNama.trim(),
-      pemohonNip: input.pemohonNip?.trim() || null,
-      pemohonJabatan: input.pemohonJabatan?.trim() || null,
-      atasanLangsungEmployeeId: input.atasanLangsungEmployeeId || null,
-      atasanLangsungNama: input.atasanLangsungNama.trim(),
-      atasanLangsungJabatan: input.atasanLangsungJabatan?.trim() || null,
-      asmanBisnisSupportEmployeeId: input.asmanBisnisSupportEmployeeId || null,
-      asmanBisnisSupportNama: input.asmanBisnisSupportNama.trim(),
-      asmanBisnisSupportJabatan: input.asmanBisnisSupportJabatan?.trim() || null,
-      status: 'Menunggu Persetujuan' as VehicleLoanStatus,
+      pemohonEmployeeId: clampStr(input.pemohonEmployeeId, 128) || null,
+      pemohonNama: clampStr(input.pemohonNama, 256),
+      pemohonNip: clampStr(input.pemohonNip, 64) || null,
+      pemohonJabatan: clampStr(input.pemohonJabatan, 256) || null,
+      atasanLangsungEmployeeId: clampStr(input.atasanLangsungEmployeeId, 128) || null,
+      atasanLangsungNama: clampStr(input.atasanLangsungNama, 256),
+      atasanLangsungJabatan: clampStr(input.atasanLangsungJabatan, 256) || null,
+      asmanBisnisSupportEmployeeId: clampStr(input.asmanBisnisSupportEmployeeId, 128) || null,
+      asmanBisnisSupportNama: clampStr(input.asmanBisnisSupportNama, 256),
+      asmanBisnisSupportJabatan: clampStr(input.asmanBisnisSupportJabatan, 256) || null,
+      status: nextEditStatus,
       rejectionReason: null,
       updatedAt: serverTimestamp(),
     };
@@ -350,7 +371,7 @@ export const useVehicleManagement = (enabled: boolean = true) => {
           trackingUpdatedAt: null,
           trackingHistory: [],
           createdByUid: user.uid,
-          createdByEmail: user.email || 'user@plnnusantarapower.co.id',
+          createdByEmail: clampStr(user.email || 'user@plnnusantarapower.co.id', 256),
           createdAt: serverTimestamp(),
         });
         await logActivity({
@@ -366,7 +387,7 @@ export const useVehicleManagement = (enabled: boolean = true) => {
       handleFirestoreError(
         error,
         input.existingId ? OperationType.UPDATE : OperationType.CREATE,
-        'vehicle_loans'
+        input.existingId ? `vehicle_loans/${input.existingId}` : 'vehicle_loans'
       );
       throw error;
     }
@@ -382,7 +403,7 @@ export const useVehicleManagement = (enabled: boolean = true) => {
       const nextStatus: VehicleLoanStatus = approve ? 'Disetujui' : 'Ditolak';
       await updateDoc(doc(db, 'vehicle_loans', loan.id), {
         status: nextStatus,
-        rejectionReason: approve ? null : (reason || 'Pengajuan ditolak oleh admin.'),
+        rejectionReason: approve ? null : clampStr(reason || 'Pengajuan ditolak oleh admin.', 512),
         updatedAt: serverTimestamp(),
       });
       await logActivity({
@@ -399,27 +420,30 @@ export const useVehicleManagement = (enabled: boolean = true) => {
 
   const savePerintahJalan = async (loan: VehicleLoanRequest, input: SavePerintahJalanInput) => {
     if (!loan.id || !user) return;
-    const lamaDipergunakan = calculateTimeDurationLabel(input.berangkatJam, input.kembaliJam);
-    const kmAwal = Math.max(0, Number(input.standKmAwal) || 0);
-    const kmAkhir = Math.max(0, Number(input.standKmAkhir) || 0);
+    const lamaDipergunakan = clampStr(
+      calculateTimeDurationLabel(input.berangkatJam, input.kembaliJam),
+      64
+    );
+    const kmAwal = safeNonNegativeInt(input.standKmAwal, 0);
+    const kmAkhir = safeNonNegativeInt(input.standKmAkhir, 0);
     const jarakTempuh = kmAkhir >= kmAwal ? kmAkhir - kmAwal : 0;
 
     const perintahJalan: PerintahJalanData = {
-      tanggal: input.tanggal,
-      driverId: input.driverId || null,
-      driverNama: input.driverNama.trim(),
-      berangkatJam: input.berangkatJam,
-      kembaliJam: input.kembaliJam || '',
+      tanggal: clampStr(input.tanggal, 32),
+      driverId: clampStr(input.driverId, 128) || null,
+      driverNama: clampStr(input.driverNama, 200),
+      berangkatJam: clampStr(input.berangkatJam, 16),
+      kembaliJam: clampStr(input.kembaliJam, 16),
       lamaDipergunakan: input.kembaliJam ? lamaDipergunakan : 'Sedang berlangsung',
-      vehicleId: input.vehicleId || null,
-      kendaraanNoPol: input.kendaraanNoPol.trim().toUpperCase(),
-      kendaraanNama: input.kendaraanNama.trim(),
-      keperluan: input.keperluan.trim(),
+      vehicleId: clampStr(input.vehicleId, 128) || null,
+      kendaraanNoPol: clampStr(input.kendaraanNoPol, 32).toUpperCase(),
+      kendaraanNama: clampStr(input.kendaraanNama, 150),
+      keperluan: clampStr(input.keperluan, 500),
       standKmAwal: kmAwal,
       standKmAkhir: kmAkhir,
       jarakTempuh,
       picUid: user.uid,
-      picNama: profile?.displayName || user.email || 'PIC Administrasi Kendaraan',
+      picNama: clampStr(profile?.displayName || user.email || 'PIC Administrasi Kendaraan', 256),
       issuedAt: new Date().toISOString(),
     };
 
@@ -435,9 +459,14 @@ export const useVehicleManagement = (enabled: boolean = true) => {
         status: nextStatus,
         updatedAt: serverTimestamp(),
       });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `vehicle_loans/${loan.id}`);
+    }
 
-      // Also sync vehicle operational status & last KM if vehicleId is linked
-      if (input.vehicleId) {
+    // Sync vehicle operational status & last KM independently so a non-critical fleet sync error
+    // never masks or falsely reports a failure on an already-saved Perintah Jalan.
+    if (input.vehicleId) {
+      try {
         const vRef = doc(db, 'vehicles', input.vehicleId);
         const vSnap = await getDoc(vRef);
         if (vSnap.exists()) {
@@ -448,25 +477,26 @@ export const useVehicleManagement = (enabled: boolean = true) => {
               : nextStatus === 'Sedang Berpergian' || nextStatus === 'Perintah Jalan Terbit'
               ? 'Sedang Dipinjam'
               : vData.status;
-          const nextKm = Math.max(vData.kmTerakhir || 0, kmAkhir, kmAwal);
+          const existingKm = safeNonNegativeInt(vData.kmTerakhir, 0);
+          const nextKm = Math.max(existingKm, kmAkhir, kmAwal);
           await updateDoc(vRef, {
             status: vStatus,
             kmTerakhir: nextKm,
             updatedAt: serverTimestamp(),
           });
         }
+      } catch (vehicleSyncErr) {
+        console.warn(`Non-blocking vehicle sync warning for vehicles/${input.vehicleId}:`, vehicleSyncErr);
       }
-
-      await logActivity({
-        action: 'UPDATE',
-        entityType: 'vehicle',
-        entityId: loan.id,
-        entityName: `Perintah Jalan ${loan.loanNumber} (${perintahJalan.kendaraanNoPol})`,
-        description: `Menerbitkan/memperbarui Perintah Jalan untuk ${loan.pemohonNama} · Driver: ${perintahJalan.driverNama} · Jarak: ${jarakTempuh} km`,
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `vehicle_loans/${loan.id}`);
     }
+
+    await logActivity({
+      action: 'UPDATE',
+      entityType: 'vehicle',
+      entityId: loan.id,
+      entityName: `Perintah Jalan ${loan.loanNumber} (${perintahJalan.kendaraanNoPol})`,
+      description: `Menerbitkan/memperbarui Perintah Jalan untuk ${loan.pemohonNama} · Driver: ${perintahJalan.driverNama} · Jarak: ${jarakTempuh} km`,
+    });
   };
 
   const deleteVehicleLoan = async (loan: VehicleLoanRequest) => {

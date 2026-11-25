@@ -141,7 +141,8 @@ export type ActivityEntityType =
   | 'sppd'
   | 'knowledge'
   | 'publikasi'
-  | 'vehicle';
+  | 'vehicle'
+  | 'letter_number';
 
 export interface ActivityLog {
   id?: string;
@@ -538,6 +539,59 @@ export interface VehicleLoanRequest {
   lastLocationLabel?: string | null;
   trackingUpdatedAt?: string | null;
   trackingHistory?: VehicleTrackingPoint[];
+  createdByUid: string;
+  createdByEmail: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export type LetterCode = 'SKT' | 'BA' | 'BAPP' | 'BATK';
+
+export type LetterClassificationCode = 'KEU.01.02' | 'ORG.00.02' | 'SDM.15.01';
+
+export type LetterUnitCode = 'UPKS' | 'ULSR' | 'ULST' | 'ULKP' | 'ULSS';
+
+export type LetterRequestStatus = 'Diterbitkan' | 'Dibatalkan';
+
+export type WhatsAppNotificationStatus = 'Menunggu Pengiriman' | 'Terkirim' | 'Gagal';
+
+export interface LetterNumberCounter {
+  id?: string;
+  counterId: string;
+  unitKode: LetterUnitCode;
+  tahun: number;
+  lastSequence: number;
+  lastRequestId: string;
+  updatedAt: any;
+}
+
+export interface LetterNumberRequest {
+  id?: string;
+  requestId: string;
+  counterId: string;
+  sequenceNumber: number;
+  sequenceLabel: string;
+  nomorSurat: string;
+  applicantEmployeeId?: string | null;
+  namaPengaju: string;
+  nip: string;
+  bidang: string;
+  tanggalPengajuan: string;
+  nomorWhatsapp: string;
+  kodeSurat: LetterCode;
+  kodeKlasifikasi: LetterClassificationCode;
+  unitKode: LetterUnitCode;
+  unitLabel: string;
+  tahun: number;
+  perihal?: string | null;
+  status: LetterRequestStatus;
+  cancellationReason?: string | null;
+  cancelledAt?: string | null;
+  whatsappStatus: WhatsAppNotificationStatus;
+  whatsappProvider?: string | null;
+  whatsappMessageId?: string | null;
+  whatsappError?: string | null;
+  whatsappSentAt?: string | null;
   createdByUid: string;
   createdByEmail: string;
   createdAt: any;

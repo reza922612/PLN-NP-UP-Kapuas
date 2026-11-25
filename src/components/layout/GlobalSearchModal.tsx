@@ -27,6 +27,11 @@ const NAV_SHORTCUTS = [
   { id: 'add-employee', label: 'Input Pegawai', desc: 'Tambah profil pegawai baru', hideViewer: true },
   { id: 'sppd', label: 'Pengajuan SPPD', desc: 'Input & monitoring Surat Perjalanan Dinas' },
   {
+    id: 'letter-numbers',
+    label: 'Nomor Surat & Berita Acara',
+    desc: 'Penomoran otomatis SKT/BA/BAPP/BATK & notifikasi WhatsApp',
+  },
+  {
     id: 'vehicles',
     label: 'Peminjaman & Tracking Kendaraan',
     desc: 'Pengajuan kendaraan dinas, Perintah Jalan PIC & live tracking GPS',

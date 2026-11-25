@@ -285,6 +285,7 @@ const VehicleLoanFormModal: React.FC<VehicleLoanFormModalProps> = ({
       await onSave({
         existingId: initialLoan?.id,
         existingLoanNumber: initialLoan?.loanNumber,
+        existingStatus: initialLoan?.status,
         nama,
         jumlahPenumpang,
         tujuan,

@@ -18,6 +18,7 @@ import {
   Plane,
   Car,
   Navigation,
+  FileCheck2,
   Plus,
   X,
 } from 'lucide-react';
@@ -41,8 +42,10 @@ import { useUnits } from '../../hooks/useUnits';
 import { useActivityLogs } from '../../hooks/useActivityLogs';
 import { useSppd } from '../../hooks/useSppd';
 import { useVehicleManagement } from '../../hooks/useVehicleManagement';
+import { useLetterNumbers } from '../../hooks/useLetterNumbers';
 import SppdFormModal from '../sppd/SppdFormModal';
 import VehicleLoanFormModal from '../vehicle/VehicleLoanFormModal';
+import LetterNumberFormModal from '../letter/LetterNumberFormModal';
 import {
   PageHeader,
   MetricCard,
@@ -79,11 +82,17 @@ const Overview: React.FC<OverviewProps> = ({
   const { logs } = useActivityLogs(true, 6);
   const { sppdStats, saveSppdRequest } = useSppd(true);
   const { loans: vehicleLoans, vehicleStats, saveVehicleLoan } = useVehicleManagement(true);
+  const {
+    stats: letterStats,
+    getNextSequencePreview,
+    submitLetterNumberRequest,
+  } = useLetterNumbers(true);
   const [sppdModalOpen, setSppdModalOpen] = useState(false);
   const [vehicleLoanModalOpen, setVehicleLoanModalOpen] = useState(false);
+  const [letterModalOpen, setLetterModalOpen] = useState(false);
   const [sppdToast, setSppdToast] = useState<{
     message: string;
-    targetTab: 'sppd' | 'vehicles';
+    targetTab: 'sppd' | 'vehicles' | 'letter-numbers';
     targetLabel: string;
   } | null>(null);
 
@@ -347,6 +356,60 @@ const Overview: React.FC<OverviewProps> = ({
             <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-[#F9D423]" />
             <Plus size={15} className="text-[#F9D423]" />
             Ajukan Kendaraan Dinas
+          </button>
+        </div>
+      </div>
+
+      {/* Quick Access Card: Pengajuan Nomor Surat & Berita Acara */}
+      <div className="rounded-2xl bg-gradient-to-r from-[#EAF6FC] via-white to-[#FFFDF4] dark:from-[#0E1A2E] dark:via-[#11223B] dark:to-[#0E1A2E] border border-[#0072BC]/35 dark:border-[#72C8F1]/30 p-5 sm:p-6 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative overflow-hidden">
+        <span aria-hidden="true" className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#F9D423]" />
+        <div className="flex items-start gap-4 pl-1">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#173B65] to-[#0072BC] text-white flex items-center justify-center shadow-md shrink-0">
+            <FileCheck2 size={22} className="text-[#F9D423]" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm sm:text-base font-extrabold text-[#173B65] dark:text-white tracking-tight">
+                Pengajuan Nomor Surat &amp; Berita Acara
+              </h3>
+              <span className="px-2 py-0.5 rounded-md bg-[#EAF6FC] dark:bg-[#0072BC]/25 text-[#0072BC] dark:text-[#72C8F1] text-[10px] font-extrabold uppercase tracking-wider">
+                Penomoran Otomatis + WhatsApp
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 max-w-2xl leading-relaxed">
+              Terbitkan nomor SKT, BA, BAPP, dan BATK secara berurutan per unit &amp; tahun dengan transaksi anti-duplikasi dan notifikasi WhatsApp otomatis ke pengaju.
+            </p>
+            <div className="flex flex-wrap items-center gap-4 pt-1 text-[11px] font-bold">
+              <span className="text-[#0072BC] dark:text-[#72C8F1] tabular-nums">
+                {letterStats.totalIssued} Nomor Diterbitkan
+              </span>
+              <span className="text-emerald-600 dark:text-emerald-400 tabular-nums">
+                {letterStats.waSent} Notifikasi WA Terkirim
+              </span>
+              <span className="text-slate-600 dark:text-slate-300 tabular-nums">
+                {letterStats.monthCount} Bulan Ini
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0 pl-1 lg:pl-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('letter-numbers')}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white dark:bg-[#0B172A] border border-slate-200 dark:border-slate-700 text-[#173B65] dark:text-slate-200 text-xs font-bold hover:border-[#0072BC] transition-colors"
+          >
+            Riwayat &amp; Statistik
+            <ArrowRight size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setLetterModalOpen(true)}
+            className="relative overflow-hidden inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#0072BC] to-[#173B65] text-white text-xs font-bold hover:brightness-110 transition-all shadow-md"
+          >
+            <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-[#F9D423]" />
+            <Plus size={15} className="text-[#F9D423]" />
+            Ajukan Nomor Surat
           </button>
         </div>
       </div>
@@ -758,6 +821,22 @@ const Overview: React.FC<OverviewProps> = ({
           return id;
         }}
         employees={employees}
+      />
+      <LetterNumberFormModal
+        open={letterModalOpen}
+        onClose={() => setLetterModalOpen(false)}
+        employees={employees}
+        getNextSequencePreview={getNextSequencePreview}
+        onSubmit={submitLetterNumberRequest}
+        onIssuedSuccess={(req, waResult) => {
+          setSppdToast({
+            message: waResult.sent
+              ? `Nomor surat ${req.nomorSurat} diterbitkan & WhatsApp terkirim ke ${req.nomorWhatsapp}.`
+              : `Nomor surat ${req.nomorSurat} diterbitkan (status WA: ${waResult.status}).`,
+            targetTab: 'letter-numbers',
+            targetLabel: 'Lihat Riwayat Nomor Surat',
+          });
+        }}
       />
     </div>
   );
