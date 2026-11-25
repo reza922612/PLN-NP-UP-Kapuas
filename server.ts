@@ -1,8 +1,14 @@
+import dotenv from "dotenv";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+
+dotenv.config();
+if (fs.existsSync(path.join(process.cwd(), ".env.local"))) {
+  dotenv.config({ path: path.join(process.cwd(), ".env.local"), override: true });
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -271,14 +277,16 @@ async function startServer() {
         };
 
         if (!metaResp.ok || !metaJson?.messages?.[0]?.id) {
-          res.status(502).json({
+          res.status(metaResp.status === 404 ? 502 : 502).json({
             sent: false,
             configured: true,
             provider: "meta",
             status: "Gagal",
             error:
-              metaJson?.error?.message ||
-              `WhatsApp Business API menolak permintaan (HTTP ${metaResp.status}).`,
+              metaResp.status === 404
+                ? "Meta WhatsApp Cloud API mengembalikan HTTP 404. Periksa WHATSAPP_PHONE_NUMBER_ID dan WHATSAPP_API_VERSION di environment server."
+                : metaJson?.error?.message ||
+                  `WhatsApp Business API menolak permintaan (HTTP ${metaResp.status}).`,
           });
           return;
         }
@@ -326,8 +334,10 @@ async function startServer() {
           provider: cfg.provider,
           status: "Gagal",
           error:
-            String(gwJson?.reason || gwJson?.message || gwJson?.error || "") ||
-            `WhatsApp Gateway gagal mengonfirmasi pengiriman (HTTP ${gwResp.status}).`,
+            gwResp.status === 404
+              ? `URL WhatsApp Gateway mengembalikan HTTP 404 (${cfg.gatewayUrl}). Periksa kembali konfigurasi WHATSAPP_GATEWAY_URL di environment server.`
+              : String(gwJson?.reason || gwJson?.message || gwJson?.error || "") ||
+                `WhatsApp Gateway gagal mengonfirmasi pengiriman (HTTP ${gwResp.status}).`,
         });
         return;
       }
@@ -352,6 +362,15 @@ async function startServer() {
         error: err?.message || "Gagal menghubungi WhatsApp Gateway.",
       });
     }
+  });
+
+  // Ensure unmatched /api/* routes always return JSON instead of falling through to SPA HTML
+  app.all("/api/*", (req, res) => {
+    res.status(404).json({
+      sent: false,
+      status: "Gagal",
+      error: `Endpoint API ${req.method} ${req.path} tidak ditemukan.`,
+    });
   });
 
   // Vite middleware for development

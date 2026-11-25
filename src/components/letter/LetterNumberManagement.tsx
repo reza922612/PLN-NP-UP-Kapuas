@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   X,
   User,
+  ExternalLink,
 } from 'lucide-react';
 import {
   BarChart,
@@ -412,6 +413,8 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
           'rounded-2xl px-4 py-3 border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs',
           gatewayStatus.configured
             ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300'
+            : !gatewayStatus.backendAvailable
+            ? 'bg-red-50/70 dark:bg-red-950/30 border-red-200 dark:border-red-900/60 text-red-800 dark:text-red-300'
             : 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60 text-amber-800 dark:text-amber-300'
         )}
       >
@@ -421,6 +424,10 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
             <span>
               <strong>WhatsApp Gateway Aktif</strong> ({gatewayStatus.provider?.toUpperCase()}): Notifikasi otomatis dikirim segera setelah nomor surat diterbitkan.
             </span>
+          ) : !gatewayStatus.backendAvailable ? (
+            <span>
+              <strong>Layanan API WhatsApp Server Belum Aktif (404):</strong> Penerbitan nomor surat tetap aman &amp; atomik. Anda dapat mengirim notifikasi melalui tautan WhatsApp pada Detail Pengajuan, atau jalankan server full-stack (<code className="font-mono font-bold">npm run start</code>).
+            </span>
           ) : (
             <span>
               <strong>Konfigurasi WhatsApp Gateway Diperlukan di Server Environment:</strong> Penerbitan nomor surat tetap berjalan normal &amp; atomik; untuk pengiriman WhatsApp otomatis, lengkapi <code className="font-mono font-bold">WHATSAPP_PHONE_NUMBER_ID</code> + <code className="font-mono font-bold">WHATSAPP_ACCESS_TOKEN</code> atau <code className="font-mono font-bold">WHATSAPP_GATEWAY_URL</code> + <code className="font-mono font-bold">WHATSAPP_GATEWAY_TOKEN</code>.
@@ -428,7 +435,11 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
           )}
         </div>
         <span className="shrink-0 font-bold text-[11px] uppercase tracking-wider">
-          {gatewayStatus.configured ? 'Terhubung' : 'Mode Siaga'}
+          {gatewayStatus.configured
+            ? 'Terhubung'
+            : !gatewayStatus.backendAvailable
+            ? 'API Tidak Terjangkau'
+            : 'Mode Siaga'}
         </span>
       </div>
 
@@ -1251,26 +1262,48 @@ const LetterNumberManagement: React.FC<LetterNumberManagementProps> = ({
                     )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {activeSelectedDetail.whatsappStatus === 'Gagal' && (
-                    <button
-                      type="button"
-                      onClick={() => handleResendWa(activeSelectedDetail)}
-                      disabled={
-                        resendingId === (activeSelectedDetail.requestId || activeSelectedDetail.id)
-                      }
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 disabled:opacity-50"
-                    >
-                      <RefreshCw
-                        size={14}
-                        className={
+                    <>
+                      <a
+                        href={`https://wa.me/${activeSelectedDetail.nomorWhatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(
+                          buildWhatsAppPreviewMessage({
+                            namaPengaju: activeSelectedDetail.namaPengaju,
+                            nomorSurat: activeSelectedDetail.nomorSurat,
+                            nip: activeSelectedDetail.nip,
+                            bidang: activeSelectedDetail.bidang,
+                            tanggalPengajuan: activeSelectedDetail.tanggalPengajuan,
+                            unitLabel:
+                              activeSelectedDetail.unitLabel ||
+                              LETTER_UNIT_LABELS[activeSelectedDetail.unitKode],
+                          })
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
+                      >
+                        <ExternalLink size={14} />
+                        Kirim Manual via WhatsApp
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => handleResendWa(activeSelectedDetail)}
+                        disabled={
                           resendingId === (activeSelectedDetail.requestId || activeSelectedDetail.id)
-                            ? 'animate-spin'
-                            : ''
                         }
-                      />
-                      Kirim Ulang Notifikasi WA
-                    </button>
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 disabled:opacity-50"
+                      >
+                        <RefreshCw
+                          size={14}
+                          className={
+                            resendingId === (activeSelectedDetail.requestId || activeSelectedDetail.id)
+                              ? 'animate-spin'
+                              : ''
+                          }
+                        />
+                        Kirim Ulang Notifikasi WA
+                      </button>
+                    </>
                   )}
                   <button
                     type="button"

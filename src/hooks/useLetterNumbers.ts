@@ -59,6 +59,7 @@ export interface WhatsAppGatewayStatus {
   configured: boolean;
   provider: string | null;
   checked: boolean;
+  backendAvailable: boolean;
 }
 
 const getSortableTime = (val: any): number => {
@@ -78,6 +79,7 @@ export function useLetterNumbers(enabled = true) {
     configured: false,
     provider: null,
     checked: false,
+    backendAvailable: true,
   });
 
   const isPrivilegedViewer = !!profile && profile.role !== 'employee';
@@ -85,15 +87,21 @@ export function useLetterNumbers(enabled = true) {
   const fetchWhatsAppGatewayStatus = useCallback(async (): Promise<WhatsAppGatewayStatus> => {
     const currentUser = auth.currentUser;
     if (!currentUser) {
-      return { configured: false, provider: null, checked: true };
+      return { configured: false, provider: null, checked: true, backendAvailable: true };
     }
     try {
       const idToken = await currentUser.getIdToken();
       const resp = await fetch('/api/whatsapp/status', {
         headers: { Authorization: `Bearer ${idToken}` },
       });
-      if (!resp.ok) {
-        const fallback = { configured: false, provider: null, checked: true };
+      const contentType = resp.headers.get('content-type') || '';
+      if (!resp.ok || !contentType.includes('application/json')) {
+        const fallback = {
+          configured: false,
+          provider: null,
+          checked: true,
+          backendAvailable: resp.status !== 404 && contentType.includes('application/json'),
+        };
         setGatewayStatus(fallback);
         return fallback;
       }
@@ -102,11 +110,12 @@ export function useLetterNumbers(enabled = true) {
         configured: Boolean(data?.configured),
         provider: data?.provider || null,
         checked: true,
+        backendAvailable: true,
       };
       setGatewayStatus(status);
       return status;
     } catch {
-      const fallback = { configured: false, provider: null, checked: true };
+      const fallback = { configured: false, provider: null, checked: true, backendAvailable: false };
       setGatewayStatus(fallback);
       return fallback;
     }
@@ -225,13 +234,16 @@ export function useLetterNumbers(enabled = true) {
           }),
         });
 
-        const payload = (await resp.json().catch(() => ({}))) as {
-          sent?: boolean;
-          configured?: boolean;
-          provider?: string | null;
-          messageId?: string;
-          error?: string;
-        };
+        const contentType = resp.headers.get('content-type') || '';
+        const payload = contentType.includes('application/json')
+          ? ((await resp.json().catch(() => ({}))) as {
+              sent?: boolean;
+              configured?: boolean;
+              provider?: string | null;
+              messageId?: string;
+              error?: string;
+            })
+          : {};
 
         if (resp.ok && payload.sent === true && payload.messageId) {
           dispatchResult = {
@@ -243,15 +255,17 @@ export function useLetterNumbers(enabled = true) {
             error: null,
           };
         } else {
+          const fallback404 =
+            resp.status === 404
+              ? 'Endpoint layanan WhatsApp server tidak terjangkau (HTTP 404). Pastikan server backend Node/Express aktif atau gunakan tombol WhatsApp Web sebagai alternatif, lalu coba Kirim Ulang.'
+              : `Pengiriman WhatsApp gagal (HTTP ${resp.status}). Silakan klik Kirim Ulang.`;
           dispatchResult = {
             sent: false,
             configured: Boolean(payload.configured),
             provider: payload.provider || null,
             status: 'Gagal',
             messageId: null,
-            error:
-              payload.error ||
-              `Pengiriman WhatsApp gagal (HTTP ${resp.status}). Silakan klik Kirim Ulang.`,
+            error: payload.error || fallback404,
           };
         }
       } catch (err: any) {
