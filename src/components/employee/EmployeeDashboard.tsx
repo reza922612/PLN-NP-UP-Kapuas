@@ -14,6 +14,7 @@ import {
   Loader2,
   Fingerprint,
   Plane,
+  Car,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { signOut } from 'firebase/auth';
@@ -23,12 +24,13 @@ import ThemeToggle from '../common/ThemeToggle';
 import BiometricSettingsCard from '../common/BiometricSettingsCard';
 import SppdManagement from '../sppd/SppdManagement';
 import KnowledgeGovernanceView from '../knowledge/KnowledgeGovernanceView';
+import VehicleLoanManagement from '../vehicle/VehicleLoanManagement';
 
 const EmployeeDashboard: React.FC = () => {
   const { profile } = useAuth();
   const [employeeData, setEmployeeData] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'biometric' | 'sppd' | 'knowledge'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'biometric' | 'sppd' | 'vehicles' | 'knowledge'>('overview');
   const [knowledgeSection, setKnowledgeSection] = useState<KnowledgeSectionType>('knowledge-sharing');
 
   useEffect(() => {
@@ -171,6 +173,19 @@ const EmployeeDashboard: React.FC = () => {
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab('vehicles')}
+              className={cn(
+                'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all',
+                activeTab === 'vehicles'
+                  ? 'bg-[#0072BC] text-white shadow-sm'
+                  : 'bg-white dark:bg-[#0E1A2E] text-slate-500 dark:text-slate-300 hover:text-[#173B65] border border-slate-200/80 dark:border-slate-800'
+              )}
+            >
+              <Car size={18} />
+              Kendaraan Dinas
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab('knowledge')}
               className={cn(
                 'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all',
@@ -223,6 +238,13 @@ const EmployeeDashboard: React.FC = () => {
               <EmployeeDetail employee={employeeData} onBack={() => {}} />
             ) : activeTab === 'sppd' ? (
               <SppdManagement defaultEmployee={employeeData} canApprove={false} compactTitle />
+            ) : activeTab === 'vehicles' ? (
+              <VehicleLoanManagement
+                employees={[employeeData]}
+                defaultEmployee={employeeData}
+                canManage={false}
+                compactHeader
+              />
             ) : activeTab === 'knowledge' ? (
               <KnowledgeGovernanceView
                 section={knowledgeSection}

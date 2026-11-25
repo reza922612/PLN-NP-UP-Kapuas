@@ -134,7 +134,14 @@ export interface OrgNode {
 }
 
 export type ActivityAction = 'CREATE' | 'UPDATE' | 'DELETE';
-export type ActivityEntityType = 'employee' | 'unit' | 'system' | 'sppd' | 'knowledge' | 'publikasi';
+export type ActivityEntityType =
+  | 'employee'
+  | 'unit'
+  | 'system'
+  | 'sppd'
+  | 'knowledge'
+  | 'publikasi'
+  | 'vehicle';
 
 export interface ActivityLog {
   id?: string;
@@ -423,3 +430,117 @@ export interface PublicPublication {
   createdAt: any;
   updatedAt: any;
 }
+
+export type VehicleStatus = 'Tersedia' | 'Sedang Dipinjam' | 'Perawatan';
+
+export type VehicleType =
+  | 'MPV'
+  | 'SUV'
+  | 'Double Cabin'
+  | 'Sedan'
+  | 'Bus / Minibus'
+  | 'Pick Up / Operasional';
+
+export interface VehicleUnit {
+  id?: string;
+  noPol: string;
+  namaKendaraan: string;
+  jenisKendaraan: VehicleType | string;
+  kapasitasPenumpang: number;
+  unitKerja: string;
+  status: VehicleStatus;
+  tahun?: string | null;
+  kmTerakhir: number;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export type DriverStatus = 'Aktif' | 'Cuti / Off';
+
+export interface VehicleDriver {
+  id?: string;
+  namaDriver: string;
+  noHp: string;
+  noSim: string;
+  employeeId?: string | null;
+  unitKerja: string;
+  status: DriverStatus;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface VehicleTrackingPoint {
+  lat: number;
+  lng: number;
+  speedKmh?: number | null;
+  heading?: number | null;
+  accuracy?: number | null;
+  recordedAt: string;
+  note?: string | null;
+}
+
+export interface PerintahJalanData {
+  tanggal: string;
+  driverId?: string | null;
+  driverNama: string;
+  berangkatJam: string;
+  kembaliJam: string;
+  lamaDipergunakan: string;
+  vehicleId?: string | null;
+  kendaraanNoPol: string;
+  kendaraanNama: string;
+  keperluan: string;
+  standKmAwal: number;
+  standKmAkhir: number;
+  jarakTempuh: number;
+  picUid: string;
+  picNama: string;
+  issuedAt: string;
+}
+
+export type VehicleLoanStatus =
+  | 'Menunggu Persetujuan'
+  | 'Disetujui'
+  | 'Perintah Jalan Terbit'
+  | 'Sedang Berpergian'
+  | 'Selesai'
+  | 'Ditolak';
+
+export interface VehicleLoanRequest {
+  id?: string;
+  loanNumber: string;
+  nama: string;
+  jumlahPenumpang: number;
+  tujuan: string;
+  tanggalDipergunakan: string;
+  bidang: string;
+  keperluan: string;
+  jamMulai: string;
+  jamSelesai: string;
+  durasiJam: string;
+  pemohonEmployeeId?: string | null;
+  pemohonNama: string;
+  pemohonNip?: string | null;
+  pemohonJabatan?: string | null;
+  atasanLangsungEmployeeId?: string | null;
+  atasanLangsungNama: string;
+  atasanLangsungJabatan?: string | null;
+  asmanBisnisSupportEmployeeId?: string | null;
+  asmanBisnisSupportNama: string;
+  asmanBisnisSupportJabatan?: string | null;
+  perintahJalan?: PerintahJalanData | null;
+  status: VehicleLoanStatus;
+  rejectionReason?: string | null;
+  isTrackingActive?: boolean;
+  currentLat?: number | null;
+  currentLng?: number | null;
+  currentSpeedKmh?: number | null;
+  lastLocationLabel?: string | null;
+  trackingUpdatedAt?: string | null;
+  trackingHistory?: VehicleTrackingPoint[];
+  createdByUid: string;
+  createdByEmail: string;
+  createdAt: any;
+  updatedAt: any;
+}
+

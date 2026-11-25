@@ -1,6 +1,7 @@
 import { collection, doc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 import { Employee, PublicUnitSummary, Unit } from '../types';
+import { syncEmployeeDirectory } from './employeeDirectory';
 
 export const PUBLIC_STATS_DOC_ID = 'up_kapuas';
 
@@ -96,6 +97,7 @@ export async function syncPublicStats(
       unitSummaries,
       updatedAt: serverTimestamp(),
     });
+    await syncEmployeeDirectory(employees);
   } catch (error) {
     try {
       handleFirestoreError(error, OperationType.WRITE, `public_stats/${PUBLIC_STATS_DOC_ID}`);

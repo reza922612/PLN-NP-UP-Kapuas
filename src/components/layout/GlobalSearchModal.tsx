@@ -26,6 +26,11 @@ const NAV_SHORTCUTS = [
   { id: 'employees', label: 'Data Pegawai', desc: 'Daftar lengkap, filter, dan ekspor CSV/Excel/PDF' },
   { id: 'add-employee', label: 'Input Pegawai', desc: 'Tambah profil pegawai baru', hideViewer: true },
   { id: 'sppd', label: 'Pengajuan SPPD', desc: 'Input & monitoring Surat Perjalanan Dinas' },
+  {
+    id: 'vehicles',
+    label: 'Peminjaman & Tracking Kendaraan',
+    desc: 'Pengajuan kendaraan dinas, Perintah Jalan PIC & live tracking GPS',
+  },
   { id: 'analytics', label: 'Laporan & Analitik', desc: 'Grafik Bar, Line, Donut dan ekspor analitik' },
   { id: 'certifications', label: 'Data Sertifikasi', desc: 'Pemantauan masa berlaku sertifikat' },
   { id: 'org-structure', label: 'Struktur Organisasi', desc: 'Hierarki jabatan dan profil personel' },

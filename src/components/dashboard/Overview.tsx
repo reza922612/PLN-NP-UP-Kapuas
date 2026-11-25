@@ -16,6 +16,8 @@ import {
   Bell,
   CheckCircle2,
   Plane,
+  Car,
+  Navigation,
   Plus,
   X,
 } from 'lucide-react';
@@ -38,7 +40,9 @@ import { Employee } from '../../types';
 import { useUnits } from '../../hooks/useUnits';
 import { useActivityLogs } from '../../hooks/useActivityLogs';
 import { useSppd } from '../../hooks/useSppd';
+import { useVehicleManagement } from '../../hooks/useVehicleManagement';
 import SppdFormModal from '../sppd/SppdFormModal';
+import VehicleLoanFormModal from '../vehicle/VehicleLoanFormModal';
 import {
   PageHeader,
   MetricCard,
@@ -74,8 +78,14 @@ const Overview: React.FC<OverviewProps> = ({
   const { unitStats, loading: unitsLoading } = useUnits();
   const { logs } = useActivityLogs(true, 6);
   const { sppdStats, saveSppdRequest } = useSppd(true);
+  const { loans: vehicleLoans, vehicleStats, saveVehicleLoan } = useVehicleManagement(true);
   const [sppdModalOpen, setSppdModalOpen] = useState(false);
-  const [sppdToast, setSppdToast] = useState<string | null>(null);
+  const [vehicleLoanModalOpen, setVehicleLoanModalOpen] = useState(false);
+  const [sppdToast, setSppdToast] = useState<{
+    message: string;
+    targetTab: 'sppd' | 'vehicles';
+    targetLabel: string;
+  } | null>(null);
 
   const sdmComputed = useMemo(() => {
     const now = new Date();
@@ -211,15 +221,15 @@ const Overview: React.FC<OverviewProps> = ({
         >
           <div className="flex items-center gap-2.5">
             <CheckCircle2 size={16} className="shrink-0" />
-            <span>{sppdToast}</span>
+            <span>{sppdToast.message}</span>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setActiveTab('sppd')}
+              onClick={() => setActiveTab(sppdToast.targetTab)}
               className="px-3 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700"
             >
-              Monitoring SPPD
+              {sppdToast.targetLabel}
             </button>
             <button
               type="button"
@@ -283,6 +293,60 @@ const Overview: React.FC<OverviewProps> = ({
             <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-[#F9D423]" />
             <Plus size={15} className="text-[#F9D423]" />
             Buat Pengajuan SPPD
+          </button>
+        </div>
+      </div>
+
+      {/* Quick Access Card: Pengajuan Peminjaman & Tracking Kendaraan Dinas */}
+      <div className="rounded-2xl bg-gradient-to-r from-[#F0FBF6] via-white to-[#EAF6FC] dark:from-[#0E1A2E] dark:via-[#11223B] dark:to-[#0E1A2E] border border-emerald-200/70 dark:border-emerald-800/40 p-5 sm:p-6 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative overflow-hidden">
+        <span aria-hidden="true" className="absolute left-0 top-0 bottom-0 w-1.5 bg-emerald-500" />
+        <div className="flex items-start gap-4 pl-1">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-[#173B65] text-white flex items-center justify-center shadow-md shrink-0">
+            <Car size={22} className="text-[#F9D423]" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm sm:text-base font-extrabold text-[#173B65] dark:text-white tracking-tight">
+                Pengajuan Peminjaman &amp; Tracking Kendaraan Dinas
+              </h3>
+              <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-extrabold uppercase tracking-wider">
+                Live GPS &amp; Perintah Jalan
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 max-w-2xl leading-relaxed">
+              Ajukan peminjaman kendaraan dinas sesuai bidang SPPD, dilengkapi penerbitan Perintah Jalan oleh PIC Administrasi Kendaraan serta pemantauan perjalanan real-time di peta SIMAP.
+            </p>
+            <div className="flex flex-wrap items-center gap-4 pt-1 text-[11px] font-bold">
+              <span className="text-[#0072BC] dark:text-[#72C8F1] tabular-nums">
+                {vehicleLoans.length} Total Pengajuan
+              </span>
+              <span className="text-emerald-600 dark:text-emerald-400 tabular-nums">
+                {vehicleStats.activeTrips} Sedang Bepergian (Live)
+              </span>
+              <span className="text-slate-600 dark:text-slate-300 tabular-nums">
+                {vehicleStats.availableVehicles}/{vehicleStats.totalVehicles} Armada Tersedia
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0 pl-1 lg:pl-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('vehicles')}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white dark:bg-[#0B172A] border border-slate-200 dark:border-slate-700 text-[#173B65] dark:text-slate-200 text-xs font-bold hover:border-emerald-500 transition-colors"
+          >
+            <Navigation size={14} className="text-emerald-600" />
+            Pantau Tracking GPS
+          </button>
+          <button
+            type="button"
+            onClick={() => setVehicleLoanModalOpen(true)}
+            className="relative overflow-hidden inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#0072BC] to-[#173B65] text-white text-xs font-bold hover:brightness-110 transition-all shadow-md"
+          >
+            <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-[#F9D423]" />
+            <Plus size={15} className="text-[#F9D423]" />
+            Ajukan Kendaraan Dinas
           </button>
         </div>
       </div>
@@ -671,12 +735,29 @@ const Overview: React.FC<OverviewProps> = ({
         onSave={saveSppdRequest}
         employees={employees}
         onSavedSuccess={(status, title) => {
-          setSppdToast(
-            status === 'Draft'
-              ? `Draft SPPD "${title}" berhasil disimpan.`
-              : `Pengajuan SPPD "${title}" berhasil dikirim (Status: Menunggu Approval).`
-          );
+          setSppdToast({
+            message:
+              status === 'Draft'
+                ? `Draft SPPD "${title}" berhasil disimpan.`
+                : `Pengajuan SPPD "${title}" berhasil dikirim (Status: Menunggu Approval).`,
+            targetTab: 'sppd',
+            targetLabel: 'Monitoring SPPD',
+          });
         }}
+      />
+      <VehicleLoanFormModal
+        open={vehicleLoanModalOpen}
+        onClose={() => setVehicleLoanModalOpen(false)}
+        onSave={async (input) => {
+          const id = await saveVehicleLoan(input);
+          setSppdToast({
+            message: `Pengajuan peminjaman kendaraan dinas tujuan "${input.tujuan}" berhasil dikirim.`,
+            targetTab: 'vehicles',
+            targetLabel: 'Lihat Peminjaman & Tracking',
+          });
+          return id;
+        }}
+        employees={employees}
       />
     </div>
   );

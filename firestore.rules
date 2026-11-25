@@ -210,7 +210,7 @@ service cloud.firestore {
       return data.keys().hasAll(['action', 'entityType', 'entityId', 'entityName', 'description', 'actorUid', 'actorEmail', 'actorName', 'createdAt']) &&
              data.keys().hasOnly(['action', 'entityType', 'entityId', 'entityName', 'description', 'actorUid', 'actorEmail', 'actorName', 'actorRole', 'createdAt']) &&
              data.action in ['CREATE', 'UPDATE', 'DELETE'] &&
-             data.entityType in ['employee', 'unit', 'system', 'sppd', 'knowledge', 'publikasi'] &&
+             data.entityType in ['employee', 'unit', 'system', 'sppd', 'knowledge', 'publikasi', 'vehicle'] &&
              data.entityId is string && data.entityId.size() > 0 && data.entityId.size() <= 128 &&
              data.entityName is string && data.entityName.size() > 0 && data.entityName.size() <= 256 &&
              data.description is string && data.description.size() > 0 && data.description.size() <= 512 &&
@@ -830,6 +830,196 @@ service cloud.firestore {
                       'attachmentUrl', 'attachmentFileName', 'isPublished', 'updatedAt'
                     ]);
       allow delete: if isValidId(pubId) && isAdmin();
+    }
+
+    // 17. Vehicles Master Collection
+    function isValidVehicleUnit(data) {
+      return data.keys().hasAll([
+               'noPol', 'namaKendaraan', 'jenisKendaraan', 'kapasitasPenumpang',
+               'unitKerja', 'status', 'kmTerakhir', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'noPol', 'namaKendaraan', 'jenisKendaraan', 'kapasitasPenumpang',
+               'unitKerja', 'status', 'tahun', 'kmTerakhir', 'createdAt', 'updatedAt'
+             ]) &&
+             data.noPol is string && data.noPol.size() > 0 && data.noPol.size() <= 32 &&
+             data.namaKendaraan is string && data.namaKendaraan.size() > 0 && data.namaKendaraan.size() <= 150 &&
+             data.jenisKendaraan is string && data.jenisKendaraan.size() > 0 && data.jenisKendaraan.size() <= 64 &&
+             data.kapasitasPenumpang is number && data.kapasitasPenumpang >= 1 && data.kapasitasPenumpang <= 100 &&
+             data.unitKerja is string && data.unitKerja.size() > 0 && data.unitKerja.size() <= 128 &&
+             data.status in ['Tersedia', 'Sedang Dipinjam', 'Perawatan'] &&
+             (!('tahun' in data) || data.tahun == null || (data.tahun is string && data.tahun.size() <= 8)) &&
+             data.kmTerakhir is number && data.kmTerakhir >= 0 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /vehicles/{vehicleId} {
+      allow get: if isValidId(vehicleId) && isRegisteredUser();
+      allow list: if isRegisteredUser();
+      allow create: if isValidId(vehicleId) && isAdmin() &&
+                    isValidVehicleUnit(incoming()) &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time;
+      allow update: if isValidId(vehicleId) && isAdmin() &&
+                    isValidVehicleUnit(incoming()) &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time;
+      allow delete: if isValidId(vehicleId) && isAdmin();
+    }
+
+    // 18. Vehicle Drivers Master Collection
+    function isValidVehicleDriver(data) {
+      return data.keys().hasAll([
+               'namaDriver', 'noHp', 'noSim', 'unitKerja', 'status', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'namaDriver', 'noHp', 'noSim', 'employeeId', 'unitKerja', 'status', 'createdAt', 'updatedAt'
+             ]) &&
+             data.namaDriver is string && data.namaDriver.size() > 0 && data.namaDriver.size() <= 200 &&
+             data.noHp is string && data.noHp.size() <= 32 &&
+             data.noSim is string && data.noSim.size() <= 64 &&
+             (!('employeeId' in data) || data.employeeId == null || (data.employeeId is string && data.employeeId.size() <= 128)) &&
+             data.unitKerja is string && data.unitKerja.size() > 0 && data.unitKerja.size() <= 128 &&
+             data.status in ['Aktif', 'Cuti / Off'] &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /vehicle_drivers/{driverId} {
+      allow get: if isValidId(driverId) && isRegisteredUser();
+      allow list: if isRegisteredUser();
+      allow create: if isValidId(driverId) && isAdmin() &&
+                    isValidVehicleDriver(incoming()) &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time;
+      allow update: if isValidId(driverId) && isAdmin() &&
+                    isValidVehicleDriver(incoming()) &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time;
+      allow delete: if isValidId(driverId) && isAdmin();
+    }
+
+    // 19. Vehicle Loans, Perintah Jalan & Live GPS Tracking
+    function isValidVehicleLoanRequest(data) {
+      return data.keys().hasAll([
+               'loanNumber', 'nama', 'jumlahPenumpang', 'tujuan', 'tanggalDipergunakan',
+               'bidang', 'keperluan', 'jamMulai', 'jamSelesai', 'durasiJam',
+               'pemohonNama', 'atasanLangsungNama', 'asmanBisnisSupportNama',
+               'status', 'createdByUid', 'createdByEmail', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'loanNumber', 'nama', 'jumlahPenumpang', 'tujuan', 'tanggalDipergunakan',
+               'bidang', 'keperluan', 'jamMulai', 'jamSelesai', 'durasiJam',
+               'pemohonEmployeeId', 'pemohonNama', 'pemohonNip', 'pemohonJabatan',
+               'atasanLangsungEmployeeId', 'atasanLangsungNama', 'atasanLangsungJabatan',
+               'asmanBisnisSupportEmployeeId', 'asmanBisnisSupportNama', 'asmanBisnisSupportJabatan',
+               'perintahJalan', 'status', 'rejectionReason',
+               'isTrackingActive', 'currentLat', 'currentLng', 'currentSpeedKmh',
+               'lastLocationLabel', 'trackingUpdatedAt', 'trackingHistory',
+               'createdByUid', 'createdByEmail', 'createdAt', 'updatedAt'
+             ]) &&
+             data.loanNumber is string && data.loanNumber.size() > 0 && data.loanNumber.size() <= 64 &&
+             data.nama is string && data.nama.size() > 0 && data.nama.size() <= 256 &&
+             data.jumlahPenumpang is number && data.jumlahPenumpang >= 1 && data.jumlahPenumpang <= 100 &&
+             data.tujuan is string && data.tujuan.size() > 0 && data.tujuan.size() <= 300 &&
+             data.tanggalDipergunakan is string && data.tanggalDipergunakan.size() > 0 && data.tanggalDipergunakan.size() <= 32 &&
+             isValidSppdBidang(data.bidang) &&
+             data.keperluan is string && data.keperluan.size() > 0 && data.keperluan.size() <= 500 &&
+             data.jamMulai is string && data.jamMulai.size() > 0 && data.jamMulai.size() <= 16 &&
+             data.jamSelesai is string && data.jamSelesai.size() > 0 && data.jamSelesai.size() <= 16 &&
+             data.durasiJam is string && data.durasiJam.size() > 0 && data.durasiJam.size() <= 64 &&
+             (!('pemohonEmployeeId' in data) || data.pemohonEmployeeId == null || (data.pemohonEmployeeId is string && data.pemohonEmployeeId.size() <= 128)) &&
+             data.pemohonNama is string && data.pemohonNama.size() > 0 && data.pemohonNama.size() <= 256 &&
+             (!('pemohonNip' in data) || data.pemohonNip == null || (data.pemohonNip is string && data.pemohonNip.size() <= 64)) &&
+             (!('pemohonJabatan' in data) || data.pemohonJabatan == null || (data.pemohonJabatan is string && data.pemohonJabatan.size() <= 256)) &&
+             (!('atasanLangsungEmployeeId' in data) || data.atasanLangsungEmployeeId == null || (data.atasanLangsungEmployeeId is string && data.atasanLangsungEmployeeId.size() <= 128)) &&
+             data.atasanLangsungNama is string && data.atasanLangsungNama.size() > 0 && data.atasanLangsungNama.size() <= 256 &&
+             (!('atasanLangsungJabatan' in data) || data.atasanLangsungJabatan == null || (data.atasanLangsungJabatan is string && data.atasanLangsungJabatan.size() <= 256)) &&
+             (!('asmanBisnisSupportEmployeeId' in data) || data.asmanBisnisSupportEmployeeId == null || (data.asmanBisnisSupportEmployeeId is string && data.asmanBisnisSupportEmployeeId.size() <= 128)) &&
+             data.asmanBisnisSupportNama is string && data.asmanBisnisSupportNama.size() > 0 && data.asmanBisnisSupportNama.size() <= 256 &&
+             (!('asmanBisnisSupportJabatan' in data) || data.asmanBisnisSupportJabatan == null || (data.asmanBisnisSupportJabatan is string && data.asmanBisnisSupportJabatan.size() <= 256)) &&
+             (!('perintahJalan' in data) || data.perintahJalan == null || (
+               data.perintahJalan is map &&
+               data.perintahJalan.tanggal is string && data.perintahJalan.tanggal.size() > 0 && data.perintahJalan.tanggal.size() <= 32 &&
+               data.perintahJalan.driverNama is string && data.perintahJalan.driverNama.size() > 0 && data.perintahJalan.driverNama.size() <= 200 &&
+               data.perintahJalan.berangkatJam is string && data.perintahJalan.berangkatJam.size() > 0 && data.perintahJalan.berangkatJam.size() <= 16 &&
+               data.perintahJalan.kembaliJam is string && data.perintahJalan.kembaliJam.size() <= 16 &&
+               data.perintahJalan.lamaDipergunakan is string && data.perintahJalan.lamaDipergunakan.size() <= 64 &&
+               data.perintahJalan.kendaraanNoPol is string && data.perintahJalan.kendaraanNoPol.size() > 0 && data.perintahJalan.kendaraanNoPol.size() <= 32 &&
+               data.perintahJalan.kendaraanNama is string && data.perintahJalan.kendaraanNama.size() <= 150 &&
+               data.perintahJalan.keperluan is string && data.perintahJalan.keperluan.size() > 0 && data.perintahJalan.keperluan.size() <= 500 &&
+               data.perintahJalan.standKmAwal is number && data.perintahJalan.standKmAwal >= 0 &&
+               data.perintahJalan.standKmAkhir is number && data.perintahJalan.standKmAkhir >= 0 &&
+               data.perintahJalan.jarakTempuh is number && data.perintahJalan.jarakTempuh >= 0
+             )) &&
+             data.status in ['Menunggu Persetujuan', 'Disetujui', 'Perintah Jalan Terbit', 'Sedang Berpergian', 'Selesai', 'Ditolak'] &&
+             (!('rejectionReason' in data) || data.rejectionReason == null || (data.rejectionReason is string && data.rejectionReason.size() <= 512)) &&
+             (!('isTrackingActive' in data) || data.isTrackingActive is bool) &&
+             (!('currentLat' in data) || data.currentLat == null || data.currentLat is number) &&
+             (!('currentLng' in data) || data.currentLng == null || data.currentLng is number) &&
+             (!('currentSpeedKmh' in data) || data.currentSpeedKmh == null || data.currentSpeedKmh is number) &&
+             (!('lastLocationLabel' in data) || data.lastLocationLabel == null || (data.lastLocationLabel is string && data.lastLocationLabel.size() <= 256)) &&
+             (!('trackingUpdatedAt' in data) || data.trackingUpdatedAt == null || (data.trackingUpdatedAt is string && data.trackingUpdatedAt.size() <= 64)) &&
+             (!('trackingHistory' in data) || (data.trackingHistory is list && data.trackingHistory.size() <= 60)) &&
+             data.createdByUid is string && data.createdByUid.size() > 0 && data.createdByUid.size() <= 128 &&
+             data.createdByEmail is string && data.createdByEmail.size() > 0 && data.createdByEmail.size() <= 256 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /vehicle_loans/{loanId} {
+      allow get: if isValidId(loanId) && isRegisteredUser();
+      allow list: if isRegisteredUser();
+      allow create: if isValidId(loanId) && isRegisteredUser() &&
+                    isValidVehicleLoanRequest(incoming()) &&
+                    incoming().createdByUid == request.auth.uid &&
+                    incoming().status == 'Menunggu Persetujuan' &&
+                    (!('perintahJalan' in incoming()) || incoming().perintahJalan == null) &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time;
+      allow update: if isValidId(loanId) && isRegisteredUser() &&
+                    isValidVehicleLoanRequest(incoming()) &&
+                    incoming().createdByUid == existing().createdByUid &&
+                    incoming().loanNumber == existing().loanNumber &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time && (
+                      isAdmin() ||
+                      (
+                        existing().createdByUid == request.auth.uid &&
+                        existing().status in ['Menunggu Persetujuan', 'Ditolak'] &&
+                        incoming().status == 'Menunggu Persetujuan' &&
+                        (!('perintahJalan' in incoming()) || incoming().perintahJalan == null)
+                      ) ||
+                      (
+                        existing().createdByUid == request.auth.uid &&
+                        existing().status in ['Perintah Jalan Terbit', 'Sedang Berpergian'] &&
+                        incoming().status in ['Sedang Berpergian', 'Selesai'] &&
+                        incoming().diff(existing()).affectedKeys().hasOnly([
+                          'status', 'isTrackingActive', 'currentLat', 'currentLng',
+                          'currentSpeedKmh', 'lastLocationLabel', 'trackingUpdatedAt',
+                          'trackingHistory', 'updatedAt'
+                        ])
+                      )
+                    );
+      allow delete: if isValidId(loanId) && (
+                      isAdmin() ||
+                      (isRegisteredUser() && existing().createdByUid == request.auth.uid && existing().status == 'Menunggu Persetujuan')
+                    );
+    }
+
+    // 20. Non-PII Employee Directory Lookup (for authenticated employee portal selectors)
+    match /employee_directory/{dirId} {
+      allow get: if isValidId(dirId) && isRegisteredUser();
+      allow list: if false;
+      allow create, update: if isValidId(dirId) && isAdmin() &&
+                            incoming().keys().hasAll(['dirId', 'items', 'updatedAt']) &&
+                            incoming().keys().hasOnly(['dirId', 'items', 'updatedAt']) &&
+                            incoming().dirId == dirId &&
+                            incoming().items is list &&
+                            incoming().items.size() <= 5000 &&
+                            incoming().updatedAt == request.time;
+      allow delete: if isValidId(dirId) && hasRole('super_admin');
     }
   }
 }

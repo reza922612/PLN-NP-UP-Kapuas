@@ -17,6 +17,7 @@ import {
   ArrowUp,
   ArrowDown,
   Building2,
+  Upload,
 } from 'lucide-react';
 import { formatDate, calculateAge, calculateTenure, cn } from '../../lib/utils';
 import { StoredImage } from '../common/StoredFileUI';
@@ -30,6 +31,12 @@ import {
   TableSkeleton,
   ConfirmDialog,
 } from '../common/DashboardUI';
+import EmployeeCsvImportModal from './EmployeeCsvImportModal';
+import {
+  CsvEmployeeImportRow,
+  CsvImportProgress,
+  CsvImportResult,
+} from '../../hooks/useEmployees';
 
 interface EmployeeListProps {
   employees: Employee[];
@@ -38,6 +45,10 @@ interface EmployeeListProps {
   onEdit?: (emp: Employee) => void;
   onDelete?: (id: string) => Promise<void>;
   canDelete?: boolean;
+  onCsvImport?: (
+    rows: CsvEmployeeImportRow[],
+    onProgress?: (progress: CsvImportProgress) => void
+  ) => Promise<CsvImportResult>;
 }
 
 type SortField = 'fullName' | 'nip' | 'jabatanLengkap' | 'status' | 'tanggalPengangkatan';
@@ -49,6 +60,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
   onEdit,
   onDelete,
   canDelete,
+  onCsvImport,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
@@ -58,6 +70,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [confirmDeleteEmp, setConfirmDeleteEmp] = useState<Employee | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const itemsPerPage = 10;
 
   const unitOptions = useMemo(() => {
@@ -116,6 +129,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
     const rows = filteredAndSorted.map((e) => ({
       NIP: e.nip,
       'Nama Lengkap': e.fullName,
+      'Nomor KPS': e.noKPS || '-',
       Jabatan: e.jabatanLengkap,
       'Unit Pelaksana': e.unitPelaksana,
       'Sub Unit': e.subUnit,
@@ -148,6 +162,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
     const rows = filteredAndSorted.map((e) => ({
       NIP: e.nip || '-',
       'Nama Lengkap': e.fullName || '-',
+      'Nomor KPS': e.noKPS || '-',
       Jabatan: e.jabatanLengkap || '-',
       'Unit Pelaksana': e.unitPelaksana || '-',
       'Sub Unit': e.subUnit || '-',
@@ -167,6 +182,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
       'Tanggal Masuk': formatDate(e.tanggalMasuk),
       'Tanggal Pengangkatan': formatDate(e.tanggalPengangkatan),
       'Tanggal Pensiun Normal': formatDate(e.tanggalPensiunNormal),
+      'Atasan Langsung': e.atasanNama || '-',
       'Jumlah Pelatihan': e.trainings?.length || 0,
       'Jumlah Sertifikasi': e.certifications?.length || 0,
     }));
@@ -193,6 +209,16 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
         badge={`${filteredAndSorted.length} Pegawai`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {onCsvImport && (
+              <button
+                type="button"
+                onClick={() => setCsvImportOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#EAF6FC] dark:bg-[#0072BC]/20 border border-[#72C8F1]/50 text-[#0072BC] dark:text-[#72C8F1] rounded-xl text-xs font-bold hover:bg-[#0072BC] hover:text-white transition-colors"
+              >
+                <Upload size={14} />
+                Impor CSV (KPS)
+              </button>
+            )}
             <button
               type="button"
               onClick={exportCSV}
@@ -529,6 +555,15 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
           }
         }}
       />
+
+      {onCsvImport && (
+        <EmployeeCsvImportModal
+          open={csvImportOpen}
+          onClose={() => setCsvImportOpen(false)}
+          employees={employees}
+          onImport={onCsvImport}
+        />
+      )}
     </div>
   );
 };

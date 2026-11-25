@@ -20,6 +20,7 @@ import {
   Newspaper,
   BookOpen,
   Plane,
+  Car,
 } from 'lucide-react';
 import { format, formatDistanceToNow, isToday, subDays, isAfter } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
@@ -136,7 +137,9 @@ const ActivityLog: React.FC = () => {
                   ? 'Knowledge & Tata Kelola'
                   : log.entityType === 'publikasi'
                     ? 'Berita, Pengumuman & TJSL'
-                    : 'Sistem',
+                    : log.entityType === 'vehicle'
+                      ? 'Kendaraan Dinas'
+                      : 'Sistem',
         Objek: log.entityName,
         Deskripsi: log.description,
         Admin: log.actorName,
@@ -188,6 +191,8 @@ const ActivityLog: React.FC = () => {
         return { label: 'Knowledge & Tata Kelola', icon: BookOpen };
       case 'publikasi':
         return { label: 'Berita, Pengumuman & TJSL', icon: Newspaper };
+      case 'vehicle':
+        return { label: 'Kendaraan Dinas', icon: Car };
       default:
         return { label: 'Sistem', icon: ShieldCheck };
     }
@@ -309,6 +314,7 @@ const ActivityLog: React.FC = () => {
                   <option value="sppd" className="dark:bg-slate-900">SPPD</option>
                   <option value="knowledge" className="dark:bg-slate-900">Knowledge &amp; Tata Kelola</option>
                   <option value="publikasi" className="dark:bg-slate-900">Berita, Pengumuman &amp; TJSL</option>
+                  <option value="vehicle" className="dark:bg-slate-900">Kendaraan Dinas</option>
                   <option value="system" className="dark:bg-slate-900">Sistem</option>
                 </select>
               </div>

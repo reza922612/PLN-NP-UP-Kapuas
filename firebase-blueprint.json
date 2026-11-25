@@ -128,7 +128,7 @@
       "type": "object",
       "properties": {
         "action": { "type": "string", "enum": ["CREATE", "UPDATE", "DELETE"] },
-        "entityType": { "type": "string", "enum": ["employee", "unit", "system", "sppd", "knowledge", "publikasi"] },
+        "entityType": { "type": "string", "enum": ["employee", "unit", "system", "sppd", "knowledge", "publikasi", "vehicle"] },
         "entityId": { "type": "string", "maxLength": 128 },
         "entityName": { "type": "string", "maxLength": 256 },
         "description": { "type": "string", "maxLength": 512 },
@@ -541,6 +541,98 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "VehicleUnit": {
+      "title": "VehicleUnit",
+      "description": "Operational company vehicle master record",
+      "type": "object",
+      "properties": {
+        "noPol": { "type": "string", "maxLength": 32 },
+        "namaKendaraan": { "type": "string", "maxLength": 150 },
+        "jenisKendaraan": { "type": "string", "maxLength": 64 },
+        "kapasitasPenumpang": { "type": "number" },
+        "unitKerja": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["Tersedia", "Sedang Dipinjam", "Perawatan"] },
+        "tahun": { "type": "string", "maxLength": 8 },
+        "kmTerakhir": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["noPol", "namaKendaraan", "jenisKendaraan", "kapasitasPenumpang", "unitKerja", "status", "kmTerakhir", "createdAt", "updatedAt"]
+    },
+    "VehicleDriver": {
+      "title": "VehicleDriver",
+      "description": "Operational driver master record",
+      "type": "object",
+      "properties": {
+        "namaDriver": { "type": "string", "maxLength": 200 },
+        "noHp": { "type": "string", "maxLength": 32 },
+        "noSim": { "type": "string", "maxLength": 64 },
+        "employeeId": { "type": "string", "maxLength": 128 },
+        "unitKerja": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["Aktif", "Cuti / Off"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["namaDriver", "noHp", "noSim", "unitKerja", "status", "createdAt", "updatedAt"]
+    },
+    "VehicleLoanRequest": {
+      "title": "VehicleLoanRequest",
+      "description": "Vehicle loan application, PIC Perintah Jalan, and live GPS trip tracking",
+      "type": "object",
+      "properties": {
+        "loanNumber": { "type": "string", "maxLength": 64 },
+        "nama": { "type": "string", "maxLength": 256 },
+        "jumlahPenumpang": { "type": "number" },
+        "tujuan": { "type": "string", "maxLength": 300 },
+        "tanggalDipergunakan": { "type": "string", "format": "date", "maxLength": 32 },
+        "bidang": { "type": "string", "maxLength": 128 },
+        "keperluan": { "type": "string", "maxLength": 500 },
+        "jamMulai": { "type": "string", "maxLength": 16 },
+        "jamSelesai": { "type": "string", "maxLength": 16 },
+        "durasiJam": { "type": "string", "maxLength": 64 },
+        "pemohonEmployeeId": { "type": "string", "maxLength": 128 },
+        "pemohonNama": { "type": "string", "maxLength": 256 },
+        "pemohonNip": { "type": "string", "maxLength": 64 },
+        "pemohonJabatan": { "type": "string", "maxLength": 256 },
+        "atasanLangsungEmployeeId": { "type": "string", "maxLength": 128 },
+        "atasanLangsungNama": { "type": "string", "maxLength": 256 },
+        "atasanLangsungJabatan": { "type": "string", "maxLength": 256 },
+        "asmanBisnisSupportEmployeeId": { "type": "string", "maxLength": 128 },
+        "asmanBisnisSupportNama": { "type": "string", "maxLength": 256 },
+        "asmanBisnisSupportJabatan": { "type": "string", "maxLength": 256 },
+        "perintahJalan": { "type": "object" },
+        "status": { "type": "string", "enum": ["Menunggu Persetujuan", "Disetujui", "Perintah Jalan Terbit", "Sedang Berpergian", "Selesai", "Ditolak"] },
+        "rejectionReason": { "type": "string", "maxLength": 512 },
+        "isTrackingActive": { "type": "boolean" },
+        "currentLat": { "type": "number" },
+        "currentLng": { "type": "number" },
+        "currentSpeedKmh": { "type": "number" },
+        "lastLocationLabel": { "type": "string", "maxLength": 256 },
+        "trackingUpdatedAt": { "type": "string", "maxLength": 64 },
+        "trackingHistory": { "type": "array" },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdByEmail": { "type": "string", "maxLength": 256 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "loanNumber", "nama", "jumlahPenumpang", "tujuan", "tanggalDipergunakan", "bidang",
+        "keperluan", "jamMulai", "jamSelesai", "durasiJam", "pemohonNama",
+        "atasanLangsungNama", "asmanBisnisSupportNama", "status", "createdByUid", "createdByEmail",
+        "createdAt", "updatedAt"
+      ]
+    },
+    "EmployeeDirectory": {
+      "title": "EmployeeDirectory",
+      "description": "Lightweight non-PII employee lookup directory for authenticated internal forms",
+      "type": "object",
+      "properties": {
+        "dirId": { "type": "string", "maxLength": 64 },
+        "items": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["dirId", "items", "updatedAt"]
     }
   },
   "firestore": {
@@ -631,6 +723,22 @@
     "public_publications/{pubId}": {
       "schema": "PublicPublication",
       "description": "Publicly visible Berita, Pengumuman, and Agenda Kegiatan TJSL for the landing page"
+    },
+    "vehicles/{vehicleId}": {
+      "schema": "VehicleUnit",
+      "description": "Company operational vehicles master data"
+    },
+    "vehicle_drivers/{driverId}": {
+      "schema": "VehicleDriver",
+      "description": "Company operational vehicle drivers master data"
+    },
+    "vehicle_loans/{loanId}": {
+      "schema": "VehicleLoanRequest",
+      "description": "Vehicle loan requests, Perintah Jalan records, and live GPS tracking"
+    },
+    "employee_directory/{dirId}": {
+      "schema": "EmployeeDirectory",
+      "description": "Non-PII employee directory options for authenticated users"
     }
   }
 }
