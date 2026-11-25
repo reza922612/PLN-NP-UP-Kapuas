@@ -1,5 +1,4 @@
 import React, { useMemo, useRef, useState } from 'react';
-import Papa from 'papaparse';
 import {
   AlertCircle,
   CheckCircle2,
@@ -16,6 +15,13 @@ import {
   CsvImportProgress,
   CsvImportResult,
 } from '../../hooks/useEmployees';
+import {
+  buildMissingKpsRows,
+  downloadCsvRows,
+  downloadExcelRows,
+  FULL_EMPLOYEE_TEMPLATE_SAMPLE,
+  parseEmployeeSpreadsheetFile,
+} from '../../lib/employeeSpreadsheet';
 import { cn } from '../../lib/utils';
 
 interface EmployeeCsvImportModalProps {
@@ -27,107 +33,6 @@ interface EmployeeCsvImportModalProps {
     onProgress?: (progress: CsvImportProgress) => void
   ) => Promise<CsvImportResult>;
 }
-
-const normalizeHeaderKey = (raw: string): string =>
-  raw
-    .replace(/^\uFEFF/, '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '');
-
-const HEADER_ALIAS_MAP: Record<string, keyof CsvEmployeeImportRow> = {
-  nip: 'nip',
-  nomorindukpegawai: 'nip',
-  noinduk: 'nip',
-  nokps: 'noKPS',
-  nomorkps: 'noKPS',
-  kps: 'noKPS',
-  nomorkartupegawaisehat: 'noKPS',
-  kartupegawaisehat: 'noKPS',
-  namalengkap: 'fullName',
-  nama: 'fullName',
-  namapegawai: 'fullName',
-  fullname: 'fullName',
-  jabatan: 'jabatanLengkap',
-  jabatanlengkap: 'jabatanLengkap',
-  unitpelaksana: 'unitPelaksana',
-  unitkerja: 'unitPelaksana',
-  unit: 'unitPelaksana',
-  subunit: 'subUnit',
-  status: 'status',
-  statuspegawai: 'status',
-  statuskepegawaian: 'status',
-  perusahaan: 'perusahaan',
-  company: 'perusahaan',
-  persongrade: 'personGrade',
-  positiongrade: 'positionGrade',
-  email: 'emailKorporat',
-  emailkorporat: 'emailKorporat',
-  nomortelepon: 'noTelepon',
-  notelepon: 'noTelepon',
-  telepon: 'noTelepon',
-  nohp: 'noTelepon',
-  alamatlengkap: 'alamatLengkap',
-  alamat: 'alamatLengkap',
-  jeniskelamin: 'jenisKelamin',
-  gender: 'jenisKelamin',
-  agama: 'agama',
-  pendidikanterakhir: 'pendidikanTerakhir',
-  pendidikan: 'pendidikanTerakhir',
-  noktp: 'noKTP',
-  nomorktp: 'noKTP',
-  ktp: 'noKTP',
-  nik: 'noKTP',
-  nonpwp: 'noNPWP',
-  nomornpwp: 'noNPWP',
-  npwp: 'noNPWP',
-  nobpjskesehatan: 'noBPJSKesehatan',
-  bpjskesehatan: 'noBPJSKesehatan',
-  nobpjsketenagakerjaan: 'noBPJSKetenagakerjaan',
-  bpjsketenagakerjaan: 'noBPJSKetenagakerjaan',
-  tanggallahir: 'tanggalLahir',
-  tgllahir: 'tanggalLahir',
-  tanggalmasuk: 'tanggalMasuk',
-  tglmasuk: 'tanggalMasuk',
-  tanggalcalonpegawai: 'tanggalCalonPegawai',
-  tglcapeg: 'tanggalCalonPegawai',
-  tanggalmulaijabatan: 'tanggalMulaiJabatan',
-  tglmulaijabatan: 'tanggalMulaiJabatan',
-  tanggalpengangkatan: 'tanggalPengangkatan',
-  tglpengangkatan: 'tanggalPengangkatan',
-  tanggalpensiunnormal: 'tanggalPensiunNormal',
-  tanggalpensiun: 'tanggalPensiunNormal',
-  tglpensiun: 'tanggalPensiunNormal',
-  atasannama: 'atasanNama',
-  atasanlangsung: 'atasanNama',
-  namaatasan: 'atasanNama',
-  atasan: 'atasanNama',
-  atasanjabatan: 'atasanJabatan',
-  jabatanatasan: 'atasanJabatan',
-};
-
-const normalizeCsvDate = (raw: string): string => {
-  const val = raw.trim();
-  if (!val || val === '-') return '';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
-  const dmy = /^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/.exec(val);
-  if (dmy) {
-    const dd = dmy[1].padStart(2, '0');
-    const mm = dmy[2].padStart(2, '0');
-    const yyyy = dmy[3];
-    return `${yyyy}-${mm}-${dd}`;
-  }
-  return val;
-};
-
-const DATE_FIELDS = new Set<keyof CsvEmployeeImportRow>([
-  'tanggalLahir',
-  'tanggalMasuk',
-  'tanggalCalonPegawai',
-  'tanggalMulaiJabatan',
-  'tanggalPengangkatan',
-  'tanggalPensiunNormal',
-]);
 
 const EmployeeCsvImportModal: React.FC<EmployeeCsvImportModalProps> = ({
   open,
@@ -202,140 +107,45 @@ const EmployeeCsvImportModal: React.FC<EmployeeCsvImportModalProps> = ({
     onClose();
   };
 
-  const downloadCsvBlob = (rows: Record<string, string>[], downloadName: string) => {
-    const csv = Papa.unparse(rows);
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', downloadName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
   const handleDownloadMissingKpsTemplate = () => {
-    const source = missingKpsEmployees.length > 0 ? missingKpsEmployees : employees;
-    const rows =
-      source.length > 0
-        ? source.map((e) => ({
-            NIP: e.nip || '',
-            'Nama Lengkap': e.fullName || '',
-            'Unit Pelaksana': e.unitPelaksana || 'UP Kapuas',
-            'Nomor KPS': e.noKPS || '',
-          }))
-        : [
-            {
-              NIP: '199001012015011001',
-              'Nama Lengkap': 'Contoh Pegawai PLN NP',
-              'Unit Pelaksana': 'UP Kapuas',
-              'Nomor KPS': 'KPS-00012345',
-            },
-          ];
-    downloadCsvBlob(rows, `Template_Isi_Nomor_KPS_Pegawai_${new Date().toISOString().slice(0, 10)}.csv`);
+    const rows = buildMissingKpsRows(employees);
+    downloadExcelRows(
+      rows,
+      `Template_Isi_Nomor_KPS_Pegawai_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      'Daftar KPS Pegawai'
+    );
   };
 
-  const handleDownloadFullTemplate = () => {
-    downloadCsvBlob(
-      [
-        {
-          NIP: '199205102018011002',
-          'Nama Lengkap': 'Budi Santoso',
-          'Nomor KPS': 'KPS-2026-0001',
-          Jabatan: 'Team Leader Pemeliharaan',
-          'Unit Pelaksana': 'UP Kapuas',
-          'Sub Unit': 'Bidang Pemeliharaan',
-          'Status Pegawai': 'Pegawai Organik',
-          Perusahaan: 'PT PLN Nusantara Power',
-          'Person Grade': '12',
-          'Position Grade': '11',
-          'Jenis Kelamin': 'Laki-laki',
-          Agama: 'Islam',
-          'Email Korporat': 'budi.santoso@plnnusantarapower.co.id',
-          'Nomor Telepon': '081234567890',
-          'Nomor KTP': '6171011005920001',
-          'Nomor NPWP': '123456789012345',
-          'BPJS Kesehatan': '0001234567890',
-          'BPJS Ketenagakerjaan': '18001234567',
-          'Tanggal Lahir': '1992-05-10',
-          'Tanggal Masuk': '2018-01-15',
-          'Tanggal Mulai Jabatan': '2024-03-01',
-          'Tanggal Pengangkatan': '2019-01-15',
-          'Tanggal Pensiun Normal': '2048-05-10',
-          'Atasan Langsung': '',
-        },
-      ],
+  const handleDownloadFullTemplateExcel = () => {
+    downloadExcelRows(
+      FULL_EMPLOYEE_TEMPLATE_SAMPLE,
+      'Template_Impor_Lengkap_Pegawai_SIMAP.xlsx',
+      'Input Pegawai'
+    );
+  };
+
+  const handleDownloadFullTemplateCsv = () => {
+    downloadCsvRows(
+      FULL_EMPLOYEE_TEMPLATE_SAMPLE,
       'Template_Impor_Lengkap_Pegawai_SIMAP.csv'
     );
   };
 
-  const processFile = (file: File) => {
+  const processFile = async (file: File) => {
     setParseError(null);
     setResult(null);
     setProgress(null);
-
-    if (!file.name.toLowerCase().endsWith('.csv') && !file.type.includes('csv')) {
-      setParseError('Format file harus berupa CSV (.csv).');
-      return;
-    }
-
     setFileName(file.name);
 
-    Papa.parse<Record<string, string>>(file, {
-      header: true,
-      skipEmptyLines: true,
-      encoding: 'UTF-8',
-      complete: (res) => {
-        if (res.errors.length > 0 && res.data.length === 0) {
-          setParseError(`Gagal membaca CSV: ${res.errors[0].message}`);
-          return;
-        }
-
-        const rawFields = res.meta.fields || [];
-        const mappedHeaders: string[] = [];
-        const fieldMap: Record<string, keyof CsvEmployeeImportRow> = {};
-
-        rawFields.forEach((rawCol) => {
-          const norm = normalizeHeaderKey(rawCol);
-          const target = HEADER_ALIAS_MAP[norm];
-          if (target) {
-            fieldMap[rawCol] = target;
-            mappedHeaders.push(`${rawCol} → ${target}`);
-          }
-        });
-
-        if (!Object.values(fieldMap).includes('nip')) {
-          setParseError(
-            'Kolom "NIP" wajib ada pada header CSV untuk mencocokkan pegawai (contoh header: NIP, Nomor KPS).'
-          );
-          setParsedRows([]);
-          return;
-        }
-
-        const normalizedRows: CsvEmployeeImportRow[] = res.data.map((rawObj, idx) => {
-          const entry: CsvEmployeeImportRow = {
-            rowNumber: idx + 2,
-            nip: '',
-          };
-          Object.entries(fieldMap).forEach(([rawKey, targetKey]) => {
-            if (targetKey === 'rowNumber') return;
-            const rawVal = rawObj[rawKey] != null ? String(rawObj[rawKey]).trim() : '';
-            if (!rawVal) return;
-            (entry as any)[targetKey] = DATE_FIELDS.has(targetKey)
-              ? normalizeCsvDate(rawVal)
-              : rawVal;
-          });
-          return entry;
-        });
-
-        setDetectedHeaders(mappedHeaders);
-        setParsedRows(normalizedRows);
-      },
-      error: (err) => {
-        setParseError(`Error membaca file CSV: ${err.message}`);
-      },
-    });
+    try {
+      const parsed = await parseEmployeeSpreadsheetFile(file);
+      setDetectedHeaders(parsed.detectedHeaders);
+      setParsedRows(parsed.rows);
+    } catch (err: any) {
+      setParsedRows([]);
+      setDetectedHeaders([]);
+      setParseError(err?.message || 'Gagal membaca file Excel / CSV.');
+    }
   };
 
   const handleConfirmImport = async () => {
@@ -372,10 +182,10 @@ const EmployeeCsvImportModal: React.FC<EmployeeCsvImportModalProps> = ({
               </div>
               <div>
                 <h2 id="csv-import-title" className="text-lg font-extrabold tracking-tight">
-                  Impor Data Pegawai &amp; Nomor KPS (CSV Massal)
+                  Impor Data Pegawai &amp; Nomor KPS (Excel / CSV Massal)
                 </h2>
                 <p className="text-xs text-blue-100/90 mt-0.5">
-                  Perbarui ribuan Nomor KPS pegawai berdasarkan NIP atau tambah pegawai baru dalam satu kali unggah batch
+                  Perbarui ribuan Nomor KPS pegawai berdasarkan NIP atau tambah pegawai baru dari file Excel (.xlsx/.xls) atau CSV (.csv)
                 </p>
               </div>
             </div>
@@ -383,7 +193,7 @@ const EmployeeCsvImportModal: React.FC<EmployeeCsvImportModalProps> = ({
               type="button"
               onClick={handleClose}
               disabled={importing}
-              aria-label="Tutup Modal Impor CSV"
+              aria-label="Tutup Modal Impor Excel / CSV"
               className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors disabled:opacity-40"
             >
               <X size={18} />
@@ -411,15 +221,23 @@ const EmployeeCsvImportModal: React.FC<EmployeeCsvImportModalProps> = ({
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0072BC] text-white text-xs font-bold hover:bg-[#173B65] transition-colors"
               >
                 <Download size={14} />
-                Unduh Daftar KPS Kosong
+                Unduh Daftar KPS (.xlsx)
               </button>
               <button
                 type="button"
-                onClick={handleDownloadFullTemplate}
+                onClick={handleDownloadFullTemplateExcel}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-[#0E1A2E] border border-slate-200 dark:border-slate-700 text-[#173B65] dark:text-slate-200 text-xs font-bold hover:border-[#0072BC] transition-colors"
               >
                 <Download size={14} />
-                Template Lengkap
+                Template Excel
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadFullTemplateCsv}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-[#0E1A2E] border border-slate-200 dark:border-slate-700 text-[#173B65] dark:text-slate-200 text-xs font-bold hover:border-[#0072BC] transition-colors"
+              >
+                <Download size={14} />
+                Template CSV
               </button>
             </div>
           </div>
@@ -435,7 +253,7 @@ const EmployeeCsvImportModal: React.FC<EmployeeCsvImportModalProps> = ({
               e.preventDefault();
               setDragActive(false);
               const dropped = e.dataTransfer.files?.[0];
-              if (dropped) processFile(dropped);
+              if (dropped) void processFile(dropped);
             }}
             onClick={() => !importing && fileInputRef.current?.click()}
             className={cn(
@@ -448,11 +266,11 @@ const EmployeeCsvImportModal: React.FC<EmployeeCsvImportModalProps> = ({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) processFile(file);
+                if (file) void processFile(file);
               }}
             />
             <div className="w-12 h-12 rounded-2xl bg-[#EAF6FC] dark:bg-[#0072BC]/20 text-[#0072BC] dark:text-[#72C8F1] flex items-center justify-center">
@@ -460,10 +278,10 @@ const EmployeeCsvImportModal: React.FC<EmployeeCsvImportModalProps> = ({
             </div>
             <div>
               <p className="text-xs font-extrabold text-[#173B65] dark:text-slate-100">
-                {fileName ? `File dipilih: ${fileName}` : 'Klik atau seret file CSV ke area ini'}
+                {fileName ? `File dipilih: ${fileName}` : 'Klik atau seret file Excel (.xlsx / .xls) atau CSV ke area ini'}
               </p>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                Mendukung ribuan baris data sekaligus · Pemisah koma (,) atau titik koma (;) otomatis dikenali
+                Mendukung ribuan baris data sekaligus · Format Excel &amp; CSV otomatis dikenali
               </p>
             </div>
           </div>
@@ -503,7 +321,7 @@ const EmployeeCsvImportModal: React.FC<EmployeeCsvImportModalProps> = ({
             <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 space-y-2.5">
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300 text-xs font-extrabold">
                 <CheckCircle2 size={17} />
-                <span>Impor Massal CSV Selesai Diproses</span>
+                <span>Impor Massal Excel / CSV Selesai Diproses</span>
               </div>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div className="p-2.5 rounded-xl bg-white dark:bg-[#0E1A2E] border border-emerald-100 dark:border-slate-800">
@@ -543,7 +361,7 @@ const EmployeeCsvImportModal: React.FC<EmployeeCsvImportModalProps> = ({
             <div className="space-y-3">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3 rounded-xl bg-[#F4F8FB] dark:bg-[#0B172A] border border-slate-200 dark:border-slate-800">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Total Baris CSV</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Total Baris File</p>
                   <p className="text-base font-extrabold text-[#173B65] dark:text-white tabular-nums">
                     {previewSummary.total}
                   </p>

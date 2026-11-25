@@ -48,6 +48,7 @@ export interface CsvEmployeeImportRow {
   tanggalMulaiJabatan?: string;
   tanggalPengangkatan?: string;
   tanggalPensiunNormal?: string;
+  tanggalBerakhirBekerja?: string;
   atasanNama?: string;
   atasanJabatan?: string;
 }
@@ -59,11 +60,20 @@ export interface CsvImportProgress {
   totalBatches: number;
 }
 
+export interface CsvImportRowOutcome {
+  rowNumber: number;
+  nip: string;
+  fullName: string;
+  action: 'created' | 'updated' | 'skipped';
+  message?: string;
+}
+
 export interface CsvImportResult {
   updatedCount: number;
   createdCount: number;
   skippedCount: number;
   errors: string[];
+  rowResults: CsvImportRowOutcome[];
 }
 
 const VALID_STATUSES: EmployeeStatus[] = [
@@ -249,6 +259,7 @@ export const useEmployees = (shouldFetch: boolean = true) => {
     onProgress?: (progress: CsvImportProgress) => void
   ): Promise<CsvImportResult> => {
     const errors: string[] = [];
+    const rowResults: CsvImportRowOutcome[] = [];
     let updatedCount = 0;
     let createdCount = 0;
     let skippedCount = 0;
@@ -272,16 +283,76 @@ export const useEmployees = (shouldFetch: boolean = true) => {
     }
 
     const queued: QueuedWrite[] = [];
+    const queuedByNip: Record<string, QueuedWrite> = {};
+
+    const buildPatch = (row: CsvEmployeeImportRow) => {
+      const patch: Record<string, any> = {};
+      const assignIfPresent = (key: keyof CsvEmployeeImportRow, targetKey: string, maxLen = 256) => {
+        const rawVal = row[key];
+        const val = rawVal !== undefined && rawVal !== null ? String(rawVal).trim() : '';
+        if (val && val !== '-') {
+          patch[targetKey] = val.slice(0, maxLen);
+        }
+      };
+
+      assignIfPresent('fullName', 'fullName', 256);
+      assignIfPresent('noKPS', 'noKPS', 128);
+      assignIfPresent('jabatanLengkap', 'jabatanLengkap', 256);
+      assignIfPresent('unitPelaksana', 'unitPelaksana', 256);
+      assignIfPresent('subUnit', 'subUnit', 256);
+      assignIfPresent('personGrade', 'personGrade', 64);
+      assignIfPresent('positionGrade', 'positionGrade', 64);
+      assignIfPresent('emailKorporat', 'emailKorporat', 256);
+      assignIfPresent('noTelepon', 'noTelepon', 64);
+      assignIfPresent('alamatLengkap', 'alamatLengkap', 512);
+      assignIfPresent('agama', 'agama', 50);
+      assignIfPresent('pendidikanTerakhir', 'pendidikanTerakhir', 128);
+      assignIfPresent('noKTP', 'noKTP', 64);
+      assignIfPresent('noNPWP', 'noNPWP', 64);
+      assignIfPresent('noBPJSKesehatan', 'noBPJSKesehatan', 64);
+      assignIfPresent('noBPJSKetenagakerjaan', 'noBPJSKetenagakerjaan', 64);
+      assignIfPresent('tanggalLahir', 'tanggalLahir', 32);
+      assignIfPresent('tanggalMasuk', 'tanggalMasuk', 32);
+      assignIfPresent('tanggalCalonPegawai', 'tanggalCalonPegawai', 32);
+      assignIfPresent('tanggalMulaiJabatan', 'tanggalMulaiJabatan', 32);
+      assignIfPresent('tanggalPengangkatan', 'tanggalPengangkatan', 32);
+      assignIfPresent('tanggalPensiunNormal', 'tanggalPensiunNormal', 32);
+      assignIfPresent('tanggalBerakhirBekerja', 'tanggalBerakhirBekerja', 32);
+
+      const normStatus = normalizeStatus(row.status);
+      if (normStatus) patch.status = normStatus;
+
+      const normCompany = normalizeCompany(row.perusahaan);
+      if (normCompany) patch.perusahaan = normCompany;
+
+      const normGender = normalizeGender(row.jenisKelamin);
+      if (normGender) patch.jenisKelamin = normGender;
+
+      if (patch.tanggalMulaiJabatan) {
+        patch.masaJabatan = calculatePositionTenure(patch.tanggalMulaiJabatan) || '';
+      }
+
+      return patch;
+    };
 
     for (const row of rows) {
       const cleanNip = (row.nip || '').trim();
       if (!cleanNip || cleanNip === '-') {
         skippedCount += 1;
-        errors.push(`Baris ${row.rowNumber}: NIP kosong sehingga dilewati.`);
+        const msg = `Baris ${row.rowNumber}: NIP kosong sehingga dilewati.`;
+        errors.push(msg);
+        rowResults.push({
+          rowNumber: row.rowNumber,
+          nip: '-',
+          fullName: (row.fullName || '').trim() || '-',
+          action: 'skipped',
+          message: 'NIP kosong',
+        });
         continue;
       }
 
-      const existing = byNip[cleanNip.toLowerCase()];
+      const nipKey = cleanNip.toLowerCase();
+      const existing = byNip[nipKey];
 
       // Resolve optional supervisor name
       let resolvedAtasanId: string | null | undefined;
@@ -298,52 +369,30 @@ export const useEmployees = (shouldFetch: boolean = true) => {
         }
       }
 
-      if (existing) {
-        // Patch ONLY non-empty fields provided in CSV (never wipe existing data)
-        const patch: Record<string, any> = {};
-        const assignIfPresent = (key: keyof CsvEmployeeImportRow, targetKey: string, maxLen = 256) => {
-          const rawVal = row[key];
-          const val = rawVal !== undefined && rawVal !== null ? String(rawVal).trim() : '';
-          if (val && val !== '-') {
-            patch[targetKey] = val.slice(0, maxLen);
-          }
-        };
-
-        assignIfPresent('fullName', 'fullName', 256);
-        assignIfPresent('noKPS', 'noKPS', 128);
-        assignIfPresent('jabatanLengkap', 'jabatanLengkap', 256);
-        assignIfPresent('unitPelaksana', 'unitPelaksana', 256);
-        assignIfPresent('subUnit', 'subUnit', 256);
-        assignIfPresent('personGrade', 'personGrade', 64);
-        assignIfPresent('positionGrade', 'positionGrade', 64);
-        assignIfPresent('emailKorporat', 'emailKorporat', 256);
-        assignIfPresent('noTelepon', 'noTelepon', 64);
-        assignIfPresent('alamatLengkap', 'alamatLengkap', 512);
-        assignIfPresent('agama', 'agama', 50);
-        assignIfPresent('pendidikanTerakhir', 'pendidikanTerakhir', 128);
-        assignIfPresent('noKTP', 'noKTP', 64);
-        assignIfPresent('noNPWP', 'noNPWP', 64);
-        assignIfPresent('noBPJSKesehatan', 'noBPJSKesehatan', 64);
-        assignIfPresent('noBPJSKetenagakerjaan', 'noBPJSKetenagakerjaan', 64);
-        assignIfPresent('tanggalLahir', 'tanggalLahir', 32);
-        assignIfPresent('tanggalMasuk', 'tanggalMasuk', 32);
-        assignIfPresent('tanggalCalonPegawai', 'tanggalCalonPegawai', 32);
-        assignIfPresent('tanggalMulaiJabatan', 'tanggalMulaiJabatan', 32);
-        assignIfPresent('tanggalPengangkatan', 'tanggalPengangkatan', 32);
-        assignIfPresent('tanggalPensiunNormal', 'tanggalPensiunNormal', 32);
-
-        const normStatus = normalizeStatus(row.status);
-        if (normStatus) patch.status = normStatus;
-
-        const normCompany = normalizeCompany(row.perusahaan);
-        if (normCompany) patch.perusahaan = normCompany;
-
-        const normGender = normalizeGender(row.jenisKelamin);
-        if (normGender) patch.jenisKelamin = normGender;
-
-        if (patch.tanggalMulaiJabatan) {
-          patch.masaJabatan = calculatePositionTenure(patch.tanggalMulaiJabatan) || '';
+      const alreadyQueued = queuedByNip[nipKey];
+      if (alreadyQueued) {
+        // Merge non-empty fields from duplicate NIP row in same file into the queued write
+        const patch = buildPatch(row);
+        if (resolvedAtasanNama) {
+          patch.atasanNama = resolvedAtasanNama;
+          if (resolvedAtasanId !== undefined) patch.atasanId = resolvedAtasanId;
+          if (resolvedAtasanJabatan !== undefined) patch.atasanJabatan = resolvedAtasanJabatan;
         }
+        Object.assign(alreadyQueued.payload, patch);
+        Object.assign(alreadyQueued.verifySnapshot, patch);
+        rowResults.push({
+          rowNumber: row.rowNumber,
+          nip: cleanNip,
+          fullName: String(alreadyQueued.verifySnapshot.fullName || row.fullName || '-'),
+          action: alreadyQueued.mode === 'create' ? 'created' : 'updated',
+          message: 'Digabung ke NIP yang sama pada file',
+        });
+        continue;
+      }
+
+      if (existing) {
+        // Patch ONLY non-empty fields provided in file (never wipe existing data)
+        const patch = buildPatch(row);
 
         if (resolvedAtasanNama) {
           patch.atasanNama = resolvedAtasanNama;
@@ -353,28 +402,48 @@ export const useEmployees = (shouldFetch: boolean = true) => {
 
         if (Object.keys(patch).length === 0) {
           skippedCount += 1;
+          rowResults.push({
+            rowNumber: row.rowNumber,
+            nip: cleanNip,
+            fullName: existing.fullName || '-',
+            action: 'skipped',
+            message: 'Tidak ada kolom perubahan',
+          });
           continue;
         }
 
-        // Include immutable/required fields for Firestore rule validation (isValidEmployee checks full doc on update in request.resource.data)
         patch.updatedAt = serverTimestamp();
 
         const merged = { ...existing, ...patch };
-        queued.push({
+        const qItem: QueuedWrite = {
           mode: 'update',
           docId: existing.id,
           payload: patch,
           verifySnapshot: merged,
-        });
+        };
+        queued.push(qItem);
+        queuedByNip[nipKey] = qItem;
         updatedCount += 1;
+        rowResults.push({
+          rowNumber: row.rowNumber,
+          nip: cleanNip,
+          fullName: String(merged.fullName || '-'),
+          action: 'updated',
+        });
       } else {
         // Create new employee record (requires fullName)
         const cleanName = (row.fullName || '').trim();
         if (!cleanName || cleanName === '-') {
           skippedCount += 1;
-          errors.push(
-            `Baris ${row.rowNumber} (NIP ${cleanNip}): Pegawai baru belum terdaftar di sistem dan kolom Nama Lengkap kosong.`
-          );
+          const msg = `Baris ${row.rowNumber} (NIP ${cleanNip}): Pegawai baru belum terdaftar di sistem dan kolom Nama Lengkap kosong.`;
+          errors.push(msg);
+          rowResults.push({
+            rowNumber: row.rowNumber,
+            nip: cleanNip,
+            fullName: '-',
+            action: 'skipped',
+            message: 'Nama Lengkap kosong',
+          });
           continue;
         }
 
@@ -396,6 +465,7 @@ export const useEmployees = (shouldFetch: boolean = true) => {
           tanggalMulaiJabatan: tglMulaiJabatan.slice(0, 32),
           masaJabatan: tglMulaiJabatan ? calculatePositionTenure(tglMulaiJabatan) : '',
           tanggalPengangkatan: (row.tanggalPengangkatan || '').trim().slice(0, 32),
+          tanggalBerakhirBekerja: (row.tanggalBerakhirBekerja || '').trim().slice(0, 32),
           tanggalPensiunNormal: (row.tanggalPensiunNormal || '').trim().slice(0, 32),
           jenisKelamin: normalizeGender(row.jenisKelamin) || 'Laki-laki',
           agama: (row.agama || 'Islam').trim().slice(0, 50) || 'Islam',
@@ -416,16 +486,26 @@ export const useEmployees = (shouldFetch: boolean = true) => {
           updatedAt: serverTimestamp(),
         };
 
-        // Register in maps in case duplicate NIPs or supervisor references appear later in same CSV
-        byNip[cleanNip.toLowerCase()] = { id: newDocRef.id, ...(newPayload as Employee) };
+        // Register in maps in case duplicate NIPs or supervisor references appear later in same file
+        const registeredEmp = { id: newDocRef.id, ...(newPayload as Employee) };
+        byNip[nipKey] = registeredEmp;
+        byName[cleanName.toLowerCase()] = registeredEmp;
 
-        queued.push({
+        const qItem: QueuedWrite = {
           mode: 'create',
           docId: newDocRef.id,
           payload: newPayload,
           verifySnapshot: newPayload as Partial<Employee>,
-        });
+        };
+        queued.push(qItem);
+        queuedByNip[nipKey] = qItem;
         createdCount += 1;
+        rowResults.push({
+          rowNumber: row.rowNumber,
+          nip: cleanNip,
+          fullName: cleanName,
+          action: 'created',
+        });
       }
     }
 
@@ -456,7 +536,6 @@ export const useEmployees = (shouldFetch: boolean = true) => {
 
     // Sync public stats & consolidated activity log once
     if (updatedCount > 0 || createdCount > 0) {
-      // Sync public_verifications only for newly created records (limit parallel overhead cleanly)
       const createdItems = queued.filter((q) => q.mode === 'create').slice(0, 50);
       await Promise.allSettled([
         ...createdItems.map((c) => syncPublicVerification(c.docId, c.verifySnapshot)),
@@ -464,9 +543,9 @@ export const useEmployees = (shouldFetch: boolean = true) => {
         logActivity({
           action: createdCount > 0 ? 'CREATE' : 'UPDATE',
           entityType: 'employee',
-          entityId: 'bulk_csv_import',
-          entityName: `Impor CSV (${updatedCount + createdCount} Pegawai)`,
-          description: `Impor CSV massal selesai: ${updatedCount} pegawai diperbarui & ${createdCount} pegawai baru ditambahkan.`,
+          entityId: 'bulk_spreadsheet_import',
+          entityName: `Impor Excel/CSV (${updatedCount + createdCount} Pegawai)`,
+          description: `Input massal pegawai via Excel/CSV selesai: ${createdCount} pegawai baru ditambahkan & ${updatedCount} pegawai diperbarui.`,
         }),
       ]);
     }
@@ -476,6 +555,7 @@ export const useEmployees = (shouldFetch: boolean = true) => {
       createdCount,
       skippedCount,
       errors,
+      rowResults,
     };
   };
 

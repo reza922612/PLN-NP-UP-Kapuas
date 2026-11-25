@@ -216,7 +216,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#EAF6FC] dark:bg-[#0072BC]/20 border border-[#72C8F1]/50 text-[#0072BC] dark:text-[#72C8F1] rounded-xl text-xs font-bold hover:bg-[#0072BC] hover:text-white transition-colors"
               >
                 <Upload size={14} />
-                Impor CSV (KPS)
+                Impor Excel / CSV
               </button>
             )}
             <button

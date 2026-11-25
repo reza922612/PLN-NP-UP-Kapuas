@@ -460,7 +460,27 @@ export const useVehicleManagement = (enabled: boolean = true) => {
         updatedAt: serverTimestamp(),
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `vehicle_loans/${loan.id}`);
+      let liveRole = profile?.role || 'unknown';
+      try {
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        if (userSnap.exists()) {
+          liveRole = String(userSnap.data()?.role || liveRole);
+        } else {
+          liveRole = 'not_found';
+        }
+      } catch {
+        // Ignore diagnostic lookup error
+      }
+      const errMsg = error instanceof Error ? error.message : String(error);
+      if (errMsg.toLowerCase().includes('permission')) {
+        handleFirestoreError(
+          new Error(`${errMsg} (role: ${liveRole})`),
+          OperationType.UPDATE,
+          `vehicle_loans/${loan.id}`
+        );
+      } else {
+        handleFirestoreError(error, OperationType.UPDATE, `vehicle_loans/${loan.id}`);
+      }
     }
 
     // Sync vehicle operational status & last KM independently so a non-critical fleet sync error

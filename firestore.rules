@@ -901,6 +901,38 @@ service cloud.firestore {
     }
 
     // 19. Vehicle Loans, Perintah Jalan & Live GPS Tracking
+    function isValidPerintahJalan(pj) {
+      return pj == null || (
+        pj is map &&
+        pj.keys().hasAll([
+          'tanggal', 'driverNama', 'berangkatJam', 'kembaliJam', 'lamaDipergunakan',
+          'kendaraanNoPol', 'kendaraanNama', 'keperluan',
+          'standKmAwal', 'standKmAkhir', 'jarakTempuh'
+        ]) &&
+        pj.keys().hasOnly([
+          'tanggal', 'driverId', 'driverNama', 'berangkatJam', 'kembaliJam', 'lamaDipergunakan',
+          'vehicleId', 'kendaraanNoPol', 'kendaraanNama', 'keperluan',
+          'standKmAwal', 'standKmAkhir', 'jarakTempuh', 'picUid', 'picNama', 'issuedAt'
+        ]) &&
+        pj.tanggal is string && pj.tanggal.size() > 0 && pj.tanggal.size() <= 32 &&
+        (!('driverId' in pj) || pj.driverId == null || (pj.driverId is string && pj.driverId.size() <= 128)) &&
+        pj.driverNama is string && pj.driverNama.size() > 0 && pj.driverNama.size() <= 200 &&
+        pj.berangkatJam is string && pj.berangkatJam.size() > 0 && pj.berangkatJam.size() <= 16 &&
+        pj.kembaliJam is string && pj.kembaliJam.size() <= 16 &&
+        pj.lamaDipergunakan is string && pj.lamaDipergunakan.size() <= 64 &&
+        (!('vehicleId' in pj) || pj.vehicleId == null || (pj.vehicleId is string && pj.vehicleId.size() <= 128)) &&
+        pj.kendaraanNoPol is string && pj.kendaraanNoPol.size() > 0 && pj.kendaraanNoPol.size() <= 32 &&
+        pj.kendaraanNama is string && pj.kendaraanNama.size() <= 150 &&
+        pj.keperluan is string && pj.keperluan.size() > 0 && pj.keperluan.size() <= 500 &&
+        pj.standKmAwal is number && pj.standKmAwal >= 0 &&
+        pj.standKmAkhir is number && pj.standKmAkhir >= 0 &&
+        pj.jarakTempuh is number && pj.jarakTempuh >= 0 &&
+        (!('picUid' in pj) || pj.picUid == null || (pj.picUid is string && pj.picUid.size() <= 128)) &&
+        (!('picNama' in pj) || pj.picNama == null || (pj.picNama is string && pj.picNama.size() <= 256)) &&
+        (!('issuedAt' in pj) || pj.issuedAt == null || (pj.issuedAt is string && pj.issuedAt.size() <= 64))
+      );
+    }
+
     function isValidVehicleLoanRequest(data) {
       return data.keys().hasAll([
                'loanNumber', 'nama', 'jumlahPenumpang', 'tujuan', 'tanggalDipergunakan',
@@ -939,20 +971,7 @@ service cloud.firestore {
              (!('asmanBisnisSupportEmployeeId' in data) || data.asmanBisnisSupportEmployeeId == null || (data.asmanBisnisSupportEmployeeId is string && data.asmanBisnisSupportEmployeeId.size() <= 128)) &&
              data.asmanBisnisSupportNama is string && data.asmanBisnisSupportNama.size() > 0 && data.asmanBisnisSupportNama.size() <= 256 &&
              (!('asmanBisnisSupportJabatan' in data) || data.asmanBisnisSupportJabatan == null || (data.asmanBisnisSupportJabatan is string && data.asmanBisnisSupportJabatan.size() <= 256)) &&
-             (!('perintahJalan' in data) || data.perintahJalan == null || (
-               data.perintahJalan is map &&
-               data.perintahJalan.tanggal is string && data.perintahJalan.tanggal.size() > 0 && data.perintahJalan.tanggal.size() <= 32 &&
-               data.perintahJalan.driverNama is string && data.perintahJalan.driverNama.size() > 0 && data.perintahJalan.driverNama.size() <= 200 &&
-               data.perintahJalan.berangkatJam is string && data.perintahJalan.berangkatJam.size() > 0 && data.perintahJalan.berangkatJam.size() <= 16 &&
-               data.perintahJalan.kembaliJam is string && data.perintahJalan.kembaliJam.size() <= 16 &&
-               data.perintahJalan.lamaDipergunakan is string && data.perintahJalan.lamaDipergunakan.size() <= 64 &&
-               data.perintahJalan.kendaraanNoPol is string && data.perintahJalan.kendaraanNoPol.size() > 0 && data.perintahJalan.kendaraanNoPol.size() <= 32 &&
-               data.perintahJalan.kendaraanNama is string && data.perintahJalan.kendaraanNama.size() <= 150 &&
-               data.perintahJalan.keperluan is string && data.perintahJalan.keperluan.size() > 0 && data.perintahJalan.keperluan.size() <= 500 &&
-               data.perintahJalan.standKmAwal is number && data.perintahJalan.standKmAwal >= 0 &&
-               data.perintahJalan.standKmAkhir is number && data.perintahJalan.standKmAkhir >= 0 &&
-               data.perintahJalan.jarakTempuh is number && data.perintahJalan.jarakTempuh >= 0
-             )) &&
+             (!('perintahJalan' in data) || isValidPerintahJalan(data.perintahJalan)) &&
              data.status in ['Menunggu Persetujuan', 'Disetujui', 'Perintah Jalan Terbit', 'Sedang Berpergian', 'Selesai', 'Ditolak'] &&
              (!('rejectionReason' in data) || data.rejectionReason == null || (data.rejectionReason is string && data.rejectionReason.size() <= 512)) &&
              (!('isTrackingActive' in data) || data.isTrackingActive is bool) &&
@@ -979,19 +998,41 @@ service cloud.firestore {
                     incoming().createdAt == request.time &&
                     incoming().updatedAt == request.time;
       allow update: if isValidId(loanId) && isRegisteredUser() &&
-                    isValidVehicleLoanRequest(incoming()) &&
-                    incoming().createdByUid == existing().createdByUid &&
-                    incoming().loanNumber == existing().loanNumber &&
-                    incoming().createdAt == existing().createdAt &&
                     incoming().updatedAt == request.time && (
-                      isAdmin() ||
                       (
+                        isAdmin() &&
+                        incoming().diff(existing()).affectedKeys().hasOnly(['perintahJalan', 'status', 'updatedAt']) &&
+                        isValidPerintahJalan(incoming().perintahJalan) &&
+                        incoming().status in ['Menunggu Persetujuan', 'Disetujui', 'Perintah Jalan Terbit', 'Sedang Berpergian', 'Selesai', 'Ditolak']
+                      ) ||
+                      (
+                        isAdmin() &&
+                        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectionReason', 'updatedAt']) &&
+                        incoming().status in ['Menunggu Persetujuan', 'Disetujui', 'Perintah Jalan Terbit', 'Sedang Berpergian', 'Selesai', 'Ditolak'] &&
+                        (!('rejectionReason' in incoming()) || incoming().rejectionReason == null || (incoming().rejectionReason is string && incoming().rejectionReason.size() <= 512))
+                      ) ||
+                      (
+                        isAdmin() &&
+                        isValidVehicleLoanRequest(incoming()) &&
+                        incoming().createdByUid == existing().createdByUid &&
+                        incoming().loanNumber == existing().loanNumber &&
+                        incoming().createdAt == existing().createdAt
+                      ) ||
+                      (
+                        isValidVehicleLoanRequest(incoming()) &&
+                        incoming().createdByUid == existing().createdByUid &&
+                        incoming().loanNumber == existing().loanNumber &&
+                        incoming().createdAt == existing().createdAt &&
                         existing().createdByUid == request.auth.uid &&
                         existing().status in ['Menunggu Persetujuan', 'Ditolak'] &&
                         incoming().status == 'Menunggu Persetujuan' &&
                         (!('perintahJalan' in incoming()) || incoming().perintahJalan == null)
                       ) ||
                       (
+                        isValidVehicleLoanRequest(incoming()) &&
+                        incoming().createdByUid == existing().createdByUid &&
+                        incoming().loanNumber == existing().loanNumber &&
+                        incoming().createdAt == existing().createdAt &&
                         existing().createdByUid == request.auth.uid &&
                         existing().status in ['Perintah Jalan Terbit', 'Sedang Berpergian'] &&
                         incoming().status in ['Sedang Berpergian', 'Selesai'] &&

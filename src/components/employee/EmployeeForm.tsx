@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn, calculatePositionTenure } from '../../lib/utils';
 import { differenceInYears } from 'date-fns';
 import { PageHeader, SectionCard } from '../common/DashboardUI';
+import EmployeeBulkInputCard from './EmployeeBulkInputCard';
 
 const MAX_UPLOAD_SIZE_MB = 50;
 const MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024;
@@ -334,7 +335,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
   onCancel,
   isProfileEdit,
 }) => {
-  const { employees, createEmployee, updateEmployee } = useEmployees(!isProfileEdit);
+  const { employees, createEmployee, updateEmployee, importEmployeesFromCsv } = useEmployees(!isProfileEdit);
   const [isSuccess, setIsSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
@@ -876,6 +877,23 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                 Batalkan Unggahan
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {!isEditing && !isProfileEdit && (
+        <div className="space-y-4">
+          <EmployeeBulkInputCard
+            employees={employees}
+            onImport={importEmployeesFromCsv}
+            onNavigateToList={onSuccess}
+          />
+          <div className="flex items-center gap-3 px-1">
+            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              Atau Input Satuan Melalui Formulir Manual
+            </span>
+            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
           </div>
         </div>
       )}

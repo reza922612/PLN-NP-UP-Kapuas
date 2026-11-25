@@ -260,13 +260,15 @@ const PerintahJalanModal: React.FC<PerintahJalanModalProps> = ({
         const parsed = JSON.parse(rawMsg);
         if (parsed && typeof parsed === 'object' && parsed.error) {
           const emailInfo = parsed.authInfo?.email ? ` (Akun: ${parsed.authInfo.email})` : '';
+          const roleMatch = String(parsed.error).match(/\(role:\s*([^)]+)\)/i);
+          const roleInfo = roleMatch ? ` [Role: ${roleMatch[1]}]` : '';
           const pathInfo = parsed.path ? ` [Path: ${parsed.operationType || 'update'} ${parsed.path}]` : '';
           if (String(parsed.error).toLowerCase().includes('permission')) {
             setError(
-              `Akses penyimpanan Perintah Jalan ditolak oleh aturan keamanan Firestore${emailInfo}${pathInfo}. Pastikan akun Anda memiliki peran Admin / Super Admin yang aktif dan muat ulang halaman.`
+              `Akses penyimpanan Perintah Jalan ditolak oleh aturan keamanan Firestore${emailInfo}${roleInfo}${pathInfo}. Pastikan akun Anda memiliki peran Admin / Super Admin yang aktif dan muat ulang halaman.`
             );
           } else {
-            setError(`${parsed.error}${emailInfo}${pathInfo}`);
+            setError(`${parsed.error}${emailInfo}${roleInfo}${pathInfo}`);
           }
           return;
         }
