@@ -307,7 +307,25 @@ const VehicleLoanFormModal: React.FC<VehicleLoanFormModalProps> = ({
       });
       onClose();
     } catch (err: any) {
-      setError(err?.message || 'Gagal mengirim pengajuan peminjaman kendaraan.');
+      const rawMsg = err?.message || 'Gagal mengirim pengajuan peminjaman kendaraan.';
+      try {
+        const parsed = JSON.parse(rawMsg);
+        if (parsed && typeof parsed === 'object' && parsed.error) {
+          const emailInfo = parsed.authInfo?.email ? ` (Akun: ${parsed.authInfo.email})` : '';
+          const pathInfo = parsed.path ? ` [Path: ${parsed.operationType || 'write'} ${parsed.path}]` : '';
+          if (String(parsed.error).toLowerCase().includes('permission')) {
+            setError(
+              `Akses penyimpanan pengajuan kendaraan ditolak oleh aturan keamanan Firestore${emailInfo}${pathInfo}. Pastikan akun Anda terdaftar aktif lalu muat ulang halaman.`
+            );
+          } else {
+            setError(`${parsed.error}${emailInfo}${pathInfo}`);
+          }
+          return;
+        }
+      } catch {
+        // Fallback to raw message
+      }
+      setError(rawMsg);
     } finally {
       setSubmitting(false);
     }
@@ -357,7 +375,7 @@ const VehicleLoanFormModal: React.FC<VehicleLoanFormModalProps> = ({
           {error && (
             <div className="p-3.5 rounded-2xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300 flex items-start gap-2.5 text-xs font-semibold">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
-              <span>{error}</span>
+              <span className="min-w-0 break-words">{error}</span>
             </div>
           )}
 

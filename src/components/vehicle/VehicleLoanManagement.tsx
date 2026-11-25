@@ -255,11 +255,32 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
         type: 'success',
         message: `Data kendaraan ${vNoPol.toUpperCase()} berhasil disimpan.`,
       });
-    } catch {
-      setBanner({ type: 'error', message: 'Gagal menyimpan data kendaraan dinas.' });
+    } catch (err: any) {
+      setBanner({
+        type: 'error',
+        message: formatVehicleActionError(err, 'Gagal menyimpan data kendaraan dinas.'),
+      });
     } finally {
       setSavingMaster(false);
     }
+  };
+
+  const formatVehicleActionError = (err: unknown, fallback: string): string => {
+    const rawMsg = err instanceof Error ? err.message : String(err || '');
+    if (!rawMsg) return fallback;
+    try {
+      const parsed = JSON.parse(rawMsg);
+      if (parsed && typeof parsed === 'object' && parsed.error) {
+        const emailInfo = parsed.authInfo?.email ? ` (Akun: ${parsed.authInfo.email})` : '';
+        if (String(parsed.error).toLowerCase().includes('permission')) {
+          return `Akses ditolak oleh aturan keamanan Firestore${emailInfo}. Pastikan Anda masuk sebagai Admin / Super Admin yang aktif lalu coba kembali.`;
+        }
+        return `${parsed.error}${emailInfo}`;
+      }
+    } catch {
+      // Fallback to raw message
+    }
+    return rawMsg;
   };
 
   const handleSaveDriverSubmit = async (e: React.FormEvent) => {
@@ -283,8 +304,11 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
         type: 'success',
         message: `Data pengemudi ${dNama} berhasil disimpan.`,
       });
-    } catch {
-      setBanner({ type: 'error', message: 'Gagal menyimpan data pengemudi.' });
+    } catch (err: any) {
+      setBanner({
+        type: 'error',
+        message: formatVehicleActionError(err, 'Gagal menyimpan data pengemudi.'),
+      });
     } finally {
       setSavingMaster(false);
     }
@@ -306,7 +330,10 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
     } catch (err: any) {
       setBanner({
         type: 'error',
-        message: err?.message || 'Gagal memproses persetujuan pengajuan kendaraan.',
+        message: formatVehicleActionError(
+          err,
+          'Gagal memproses persetujuan pengajuan kendaraan.'
+        ),
       });
       setDecisionLoan(null);
     } finally {
@@ -330,7 +357,7 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
     } catch (err: any) {
       setBanner({
         type: 'error',
-        message: err?.message || 'Gagal menghapus data.',
+        message: formatVehicleActionError(err, 'Gagal menghapus data.'),
       });
       setDeleteTarget(null);
     } finally {
@@ -384,8 +411,8 @@ const VehicleLoanManagement: React.FC<VehicleLoanManagementProps> = ({
               : 'bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800/60 text-red-700 dark:text-red-300'
           )}
         >
-          <span>{banner.message}</span>
-          <button type="button" onClick={() => setBanner(null)} className="p-1 rounded-lg">
+          <span className="min-w-0 break-words">{banner.message}</span>
+          <button type="button" onClick={() => setBanner(null)} className="p-1 rounded-lg shrink-0">
             <X size={14} />
           </button>
         </div>
