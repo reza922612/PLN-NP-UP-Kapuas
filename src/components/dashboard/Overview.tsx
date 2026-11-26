@@ -21,6 +21,7 @@ import {
   FileCheck2,
   Plus,
   X,
+  ArrowLeftRight,
 } from 'lucide-react';
 import {
   BarChart,
@@ -43,6 +44,7 @@ import { useActivityLogs } from '../../hooks/useActivityLogs';
 import { useSppd } from '../../hooks/useSppd';
 import { useVehicleManagement } from '../../hooks/useVehicleManagement';
 import { useLetterNumbers } from '../../hooks/useLetterNumbers';
+import { useMutations } from '../../hooks/useMutations';
 import SppdFormModal from '../sppd/SppdFormModal';
 import VehicleLoanFormModal from '../vehicle/VehicleLoanFormModal';
 import LetterNumberFormModal from '../letter/LetterNumberFormModal';
@@ -87,6 +89,7 @@ const Overview: React.FC<OverviewProps> = ({
     getNextSequencePreview,
     submitLetterNumberRequest,
   } = useLetterNumbers(true);
+  const { mutationStats } = useMutations({ enabled: true, autoApplyScheduled: true });
   const [sppdModalOpen, setSppdModalOpen] = useState(false);
   const [vehicleLoanModalOpen, setVehicleLoanModalOpen] = useState(false);
   const [letterModalOpen, setLetterModalOpen] = useState(false);
@@ -501,6 +504,198 @@ const Overview: React.FC<OverviewProps> = ({
             accent="navy"
           />
         </div>
+      </div>
+
+      {/* Row 3: Dashboard Monitoring Mutasi Unit & Jabatan */}
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-0.5">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Monitoring Mutasi Unit &amp; Jabatan Pegawai
+            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Statistik pergerakan internal/eksternal, persetujuan SK, dan distribusi mutasi per tahun, unit, serta bidang
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('mutations')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#EAF6FC] dark:bg-[#0072BC]/20 text-[#0072BC] dark:text-[#72C8F1] border border-[#72C8F1]/40 text-xs font-bold hover:bg-[#72C8F1]/25 transition-colors"
+          >
+            <ArrowLeftRight size={14} />
+            Kelola Mutasi Pegawai
+            <ArrowRight size={13} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+          <div
+            onClick={() => setActiveTab('mutations')}
+            className="cursor-pointer rounded-2xl bg-white dark:bg-[#0E1A2E] border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs hover:border-[#0072BC] transition-colors"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Mutasi Internal
+            </p>
+            <p className="text-2xl font-extrabold text-[#0072BC] dark:text-[#72C8F1] mt-1 tabular-nums">
+              {mutationStats.totalInternal}
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Lingkup UP Kapuas</p>
+          </div>
+          <div
+            onClick={() => setActiveTab('mutations')}
+            className="cursor-pointer rounded-2xl bg-white dark:bg-[#0E1A2E] border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs hover:border-[#0072BC] transition-colors"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Mutasi Eksternal
+            </p>
+            <p className="text-2xl font-extrabold text-[#173B65] dark:text-white mt-1 tabular-nums">
+              {mutationStats.totalEksternal}
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Masuk &amp; Keluar</p>
+          </div>
+          <div
+            onClick={() => setActiveTab('mutations')}
+            className="cursor-pointer rounded-2xl bg-white dark:bg-[#0E1A2E] border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs hover:border-[#0072BC] transition-colors"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Mutasi Antarunit
+            </p>
+            <p className="text-2xl font-extrabold text-[#0072BC] dark:text-[#72C8F1] mt-1 tabular-nums">
+              {mutationStats.mutasiAntarUnit}
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Perpindahan Unit</p>
+          </div>
+          <div
+            onClick={() => setActiveTab('mutations')}
+            className="cursor-pointer rounded-2xl bg-white dark:bg-[#0E1A2E] border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs hover:border-[#0072BC] transition-colors"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Mutasi Antarbidang
+            </p>
+            <p className="text-2xl font-extrabold text-cyan-600 dark:text-cyan-400 mt-1 tabular-nums">
+              {mutationStats.mutasiAntarBidang}
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Lintas Bidang</p>
+          </div>
+          <div
+            onClick={() => setActiveTab('mutations')}
+            className="cursor-pointer rounded-2xl bg-white dark:bg-[#0E1A2E] border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs hover:border-[#0072BC] transition-colors"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Mutasi Jabatan
+            </p>
+            <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1 tabular-nums">
+              {mutationStats.mutasiJabatan}
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Promosi / Rotasi</p>
+          </div>
+          <div
+            onClick={() => setActiveTab('mutations')}
+            className="cursor-pointer rounded-2xl bg-white dark:bg-[#0E1A2E] border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs hover:border-amber-500 transition-colors"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Menunggu Approval
+            </p>
+            <p className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1 tabular-nums">
+              {mutationStats.menungguPersetujuan}
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Perlu Tinjauan</p>
+          </div>
+          <div
+            onClick={() => setActiveTab('mutations')}
+            className="cursor-pointer rounded-2xl bg-white dark:bg-[#0E1A2E] border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs hover:border-[#0072BC] transition-colors"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Tahun {sdmComputed.currentYear}
+            </p>
+            <p className="text-2xl font-extrabold text-[#173B65] dark:text-[#F9D423] mt-1 tabular-nums">
+              {mutationStats.tahunBerjalan}
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Riwayat Berjalan</p>
+          </div>
+        </div>
+
+        {mutationStats.total > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <SectionCard
+              title="Tren Mutasi per Tahun"
+              subtitle="Jumlah pengajuan & realisasi mutasi tahunan"
+              icon={ArrowLeftRight}
+            >
+              <div className="h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={mutationStats.byYear} margin={{ top: 8, right: 8, left: -16, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#94a3b8" strokeOpacity={0.2} />
+                    <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} />
+                    <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: 'none',
+                        backgroundColor: '#173B65',
+                        color: '#ffffff',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Bar dataKey="count" name="Total Mutasi" fill="#0072BC" radius={[6, 6, 0, 0]} barSize={32} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              title="Mutasi per Unit Kerja Tujuan"
+              subtitle="Sebaran mutasi masuk & internal antarunit"
+              icon={Building2}
+            >
+              <div className="h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={mutationStats.byUnit} layout="vertical" margin={{ top: 4, right: 16, left: 10, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#94a3b8" strokeOpacity={0.2} />
+                    <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                    <YAxis type="category" dataKey="name" width={115} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: 'none',
+                        backgroundColor: '#173B65',
+                        color: '#ffffff',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Bar dataKey="count" name="Mutasi" fill="#72C8F1" radius={[0, 6, 6, 0]} barSize={16} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              title="Mutasi per Bidang Tujuan"
+              subtitle="Distribusi mutasi berdasarkan master bidang"
+              icon={Briefcase}
+            >
+              <div className="h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={mutationStats.byBidang.slice(0, 6)} layout="vertical" margin={{ top: 4, right: 16, left: 10, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#94a3b8" strokeOpacity={0.2} />
+                    <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                    <YAxis type="category" dataKey="name" width={125} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: 'none',
+                        backgroundColor: '#173B65',
+                        color: '#ffffff',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Bar dataKey="count" name="Mutasi" fill="#F9D423" radius={[0, 6, 6, 0]} barSize={16} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </SectionCard>
+          </div>
+        )}
       </div>
 
       {/* Main Content Split: Charts (2/3) + Sidebar Widgets (1/3) */}

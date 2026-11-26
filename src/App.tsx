@@ -29,6 +29,7 @@ import KnowledgeGovernanceView from './components/knowledge/KnowledgeGovernanceV
 import PublicationManagementView from './components/dashboard/PublicationManagementView';
 import VehicleLoanManagement from './components/vehicle/VehicleLoanManagement';
 import LetterNumberManagement from './components/letter/LetterNumberManagement';
+import MutationManagement from './components/employee/MutationManagement';
 import LandingPage from './components/public/LandingPage';
 import PublicEmployeeVerify from './components/public/PublicEmployeeVerify';
 import EmployeeDashboard from './components/employee/EmployeeDashboard';
@@ -44,6 +45,7 @@ const TAB_TITLES: Record<string, string> = {
   analytics: 'Laporan & Analitik',
   employees: 'Data Pegawai',
   'add-employee': 'Input Pegawai Baru',
+  mutations: 'Mutasi Unit & Jabatan',
   sppd: 'Pengajuan SPPD',
   'letter-numbers': 'Pengajuan Nomor Surat & Berita Acara',
   vehicles: 'Peminjaman & Tracking Kendaraan Dinas',
@@ -287,6 +289,15 @@ const MainApp: React.FC = () => {
             onDelete={deleteEmployee}
             canDelete={profile?.role === 'super_admin'}
             onCsvImport={profile?.role !== 'viewer' ? importEmployeesFromCsv : undefined}
+            onOpenMutations={() => setActiveTab('mutations')}
+          />
+        );
+      case 'mutations':
+        return (
+          <MutationManagement
+            employees={employees}
+            canManage={profile?.role === 'admin' || profile?.role === 'super_admin'}
+            onSelectEmployee={(emp) => setSelectedEmployee(emp)}
           />
         );
       case 'add-employee':

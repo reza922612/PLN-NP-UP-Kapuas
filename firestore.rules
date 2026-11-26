@@ -146,20 +146,26 @@ service cloud.firestore {
              (!('atasanId' in data) || data.atasanId == null || (data.atasanId is string && data.atasanId.size() <= 128)) &&
              (!('atasanNama' in data) || data.atasanNama == null || (data.atasanNama is string && data.atasanNama.size() <= 256)) &&
              (!('atasanJabatan' in data) || data.atasanJabatan == null || (data.atasanJabatan is string && data.atasanJabatan.size() <= 256)) &&
-             (!('noKPS' in data) || data.noKPS == null || (data.noKPS is string && data.noKPS.size() <= 128)) &&
-             (!('familyMembers' in data) || (
-               data.familyMembers is list &&
-               data.familyMembers.size() <= 30 &&
-               (data.familyMembers.size() == 0 || (
-                 data.familyMembers[0] is map &&
-                 data.familyMembers[0].nama is string && data.familyMembers[0].nama.size() > 0 && data.familyMembers[0].nama.size() <= 256 &&
-                 data.familyMembers[0].hubunganKeluarga in ['Istri/Suami', 'Anak Kandung'] &&
-                 data.familyMembers[0].tanggalLahir is string && data.familyMembers[0].tanggalLahir.size() <= 32 &&
-                 data.familyMembers[0].jenisKelamin in ['Laki-laki', 'Perempuan'] &&
-                 data.familyMembers[0].jaminanKesehatan in ['Dijamin', 'Tidak Dijamin'] &&
-                 (!('noKPS' in data.familyMembers[0]) || (data.familyMembers[0].noKPS is string && data.familyMembers[0].noKPS.size() <= 128))
-               ))
-             ));
+              (!('noKPS' in data) || data.noKPS == null || (data.noKPS is string && data.noKPS.size() <= 128)) &&
+              (!('placementStatus' in data) || data.placementStatus == null || data.placementStatus in ['Aktif', 'Mutasi Keluar']) &&
+              (!('bidang' in data) || data.bidang == null || (data.bidang is string && data.bidang.size() <= 256)) &&
+              (!('externalEntity' in data) || data.externalEntity == null || (data.externalEntity is string && data.externalEntity.size() <= 256)) &&
+              (!('lastMutationId' in data) || data.lastMutationId == null || (data.lastMutationId is string && data.lastMutationId.size() <= 128)) &&
+              (!('lastMutationDate' in data) || data.lastMutationDate == null || (data.lastMutationDate is string && data.lastMutationDate.size() <= 32)) &&
+              (!('lastMutationSkNumber' in data) || data.lastMutationSkNumber == null || (data.lastMutationSkNumber is string && data.lastMutationSkNumber.size() <= 128)) &&
+              (!('familyMembers' in data) || (
+                data.familyMembers is list &&
+                data.familyMembers.size() <= 30 &&
+                (data.familyMembers.size() == 0 || (
+                  data.familyMembers[0] is map &&
+                  data.familyMembers[0].nama is string && data.familyMembers[0].nama.size() > 0 && data.familyMembers[0].nama.size() <= 256 &&
+                  data.familyMembers[0].hubunganKeluarga in ['Istri/Suami', 'Anak Kandung'] &&
+                  data.familyMembers[0].tanggalLahir is string && data.familyMembers[0].tanggalLahir.size() <= 32 &&
+                  data.familyMembers[0].jenisKelamin in ['Laki-laki', 'Perempuan'] &&
+                  data.familyMembers[0].jaminanKesehatan in ['Dijamin', 'Tidak Dijamin'] &&
+                  (!('noKPS' in data.familyMembers[0]) || (data.familyMembers[0].noKPS is string && data.familyMembers[0].noKPS.size() <= 128))
+                ))
+              ));
     }
 
     match /employees/{employeeId} {
@@ -210,7 +216,7 @@ service cloud.firestore {
       return data.keys().hasAll(['action', 'entityType', 'entityId', 'entityName', 'description', 'actorUid', 'actorEmail', 'actorName', 'createdAt']) &&
              data.keys().hasOnly(['action', 'entityType', 'entityId', 'entityName', 'description', 'actorUid', 'actorEmail', 'actorName', 'actorRole', 'createdAt']) &&
              data.action in ['CREATE', 'UPDATE', 'DELETE'] &&
-             data.entityType in ['employee', 'unit', 'system', 'sppd', 'knowledge', 'publikasi', 'vehicle', 'letter_number'] &&
+             data.entityType in ['employee', 'mutation', 'unit', 'system', 'sppd', 'knowledge', 'publikasi', 'vehicle', 'letter_number'] &&
              data.entityId is string && data.entityId.size() > 0 && data.entityId.size() <= 128 &&
              data.entityName is string && data.entityName.size() > 0 && data.entityName.size() <= 256 &&
              data.description is string && data.description.size() > 0 && data.description.size() <= 512 &&
@@ -453,7 +459,8 @@ service cloud.firestore {
                'sop_doc',
                'regulasi_doc',
                'perdir_doc',
-               'publication_media'
+               'publication_media',
+               'mutation_doc'
              ] &&
              data.isPublic is bool &&
              data.chunkCount is number && data.chunkCount >= 0 && data.chunkCount <= 120 &&
@@ -1239,6 +1246,109 @@ service cloud.firestore {
                         ])
                       )
                     );
+      allow delete: if false;
+    }
+
+    // 23. Employee Unit & Position Mutation History & Approval Workflow
+    function isValidMutationAttachment(att) {
+      return att == null || (
+        att is map &&
+        att.keys().hasAll(['name', 'url', 'uploadedAt']) &&
+        att.keys().hasOnly(['name', 'url', 'size', 'type', 'uploadedAt']) &&
+        att.name is string && att.name.size() > 0 && att.name.size() <= 256 &&
+        att.url is string && att.url.size() > 0 && att.url.size() <= 1024 &&
+        att.uploadedAt is string && att.uploadedAt.size() <= 64
+      );
+    }
+
+    function isValidEmployeeMutation(data, mutationId) {
+      return data.keys().hasAll([
+               'mutationId', 'dedupeKey', 'employeeId', 'employeeNip', 'employeeName',
+               'jenisMutasi', 'subJenisMutasi', 'kategoriMutasi',
+               'jabatanSebelumnya', 'bidangSebelumnya', 'unitKerjaSebelumnya',
+               'statusKepegawaianSebelumnya', 'perusahaanSebelumnya',
+               'jabatanBaru', 'bidangBaru', 'unitKerjaBaru', 'statusKepegawaianBaru',
+               'effectiveDate', 'nomorSk', 'tanggalSk', 'alasanMutasi',
+               'status', 'appliedToEmployee', 'createdByUid', 'createdByEmail', 'createdByName',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'mutationId', 'dedupeKey', 'employeeId', 'employeeNip', 'employeeName',
+               'jenisMutasi', 'arahMutasi', 'subJenisMutasi', 'kategoriMutasi',
+               'jabatanSebelumnya', 'bidangSebelumnya', 'unitKerjaSebelumnya',
+               'statusKepegawaianSebelumnya', 'perusahaanSebelumnya',
+               'jabatanBaru', 'bidangBaru', 'unitKerjaBaru', 'statusKepegawaianBaru',
+               'entitasEksternal', 'effectiveDate', 'nomorSk', 'tanggalSk', 'alasanMutasi',
+               'dokumenPendukung', 'status', 'appliedToEmployee', 'appliedAt',
+               'rejectionReason', 'approvalNotes', 'approvedByUid', 'approvedByName',
+               'approvedAt', 'correctionHistory',
+               'createdByUid', 'createdByEmail', 'createdByName', 'createdAt', 'updatedAt'
+             ]) &&
+             data.mutationId == mutationId &&
+             data.dedupeKey is string && data.dedupeKey.size() > 0 && data.dedupeKey.size() <= 256 &&
+             data.employeeId is string && data.employeeId.size() > 0 && data.employeeId.size() <= 128 &&
+             data.employeeNip is string && data.employeeNip.size() > 0 && data.employeeNip.size() <= 64 &&
+             data.employeeName is string && data.employeeName.size() > 0 && data.employeeName.size() <= 256 &&
+             data.jenisMutasi in ['Internal', 'Eksternal'] &&
+             (!('arahMutasi' in data) || data.arahMutasi == null || data.arahMutasi in ['Masuk', 'Keluar']) &&
+             data.subJenisMutasi is string && data.subJenisMutasi.size() > 0 && data.subJenisMutasi.size() <= 200 &&
+             data.kategoriMutasi in ['Mutasi Unit', 'Mutasi Jabatan', 'Mutasi Unit dan Jabatan'] &&
+             data.jabatanSebelumnya is string && data.jabatanSebelumnya.size() <= 256 &&
+             data.bidangSebelumnya is string && data.bidangSebelumnya.size() <= 256 &&
+             data.unitKerjaSebelumnya is string && data.unitKerjaSebelumnya.size() <= 256 &&
+             data.statusKepegawaianSebelumnya in ['Pegawai Organik', 'Pegawai Tugas Khusus', 'Tenaga Alih Daya'] &&
+             data.perusahaanSebelumnya is string && data.perusahaanSebelumnya.size() <= 256 &&
+             data.jabatanBaru is string && data.jabatanBaru.size() > 0 && data.jabatanBaru.size() <= 256 &&
+             data.bidangBaru is string && data.bidangBaru.size() > 0 && data.bidangBaru.size() <= 256 &&
+             data.unitKerjaBaru is string && data.unitKerjaBaru.size() > 0 && data.unitKerjaBaru.size() <= 256 &&
+             data.statusKepegawaianBaru in ['Pegawai Organik', 'Pegawai Tugas Khusus', 'Tenaga Alih Daya'] &&
+             (!('entitasEksternal' in data) || data.entitasEksternal == null || (data.entitasEksternal is string && data.entitasEksternal.size() <= 256)) &&
+             data.effectiveDate is string && data.effectiveDate.size() > 0 && data.effectiveDate.size() <= 32 &&
+             data.nomorSk is string && data.nomorSk.size() > 0 && data.nomorSk.size() <= 128 &&
+             data.tanggalSk is string && data.tanggalSk.size() > 0 && data.tanggalSk.size() <= 32 &&
+             data.alasanMutasi is string && data.alasanMutasi.size() > 0 && data.alasanMutasi.size() <= 1000 &&
+             (!('dokumenPendukung' in data) || isValidMutationAttachment(data.dokumenPendukung)) &&
+             data.status in ['Menunggu Persetujuan', 'Disetujui', 'Diterapkan', 'Ditolak'] &&
+             data.appliedToEmployee is bool &&
+             (!('appliedAt' in data) || data.appliedAt == null || (data.appliedAt is string && data.appliedAt.size() <= 64)) &&
+             (!('rejectionReason' in data) || data.rejectionReason == null || (data.rejectionReason is string && data.rejectionReason.size() <= 512)) &&
+             (!('approvalNotes' in data) || data.approvalNotes == null || (data.approvalNotes is string && data.approvalNotes.size() <= 512)) &&
+             (!('approvedByUid' in data) || data.approvedByUid == null || (data.approvedByUid is string && data.approvedByUid.size() <= 128)) &&
+             (!('approvedByName' in data) || data.approvedByName == null || (data.approvedByName is string && data.approvedByName.size() <= 256)) &&
+             (!('approvedAt' in data) || data.approvedAt == null || (data.approvedAt is string && data.approvedAt.size() <= 64)) &&
+             (!('correctionHistory' in data) || (data.correctionHistory is list && data.correctionHistory.size() <= 50)) &&
+             data.createdByUid is string && data.createdByUid.size() > 0 && data.createdByUid.size() <= 128 &&
+             data.createdByEmail is string && data.createdByEmail.size() > 0 && data.createdByEmail.size() <= 256 &&
+             data.createdByName is string && data.createdByName.size() > 0 && data.createdByName.size() <= 256 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    match /employee_mutations/{mutationId} {
+      allow get: if isValidId(mutationId) && (
+        isViewer() ||
+        (isRegisteredUser() && existing().employeeId == getUserData().get('employeeId', ''))
+      );
+      allow list: if isViewer() || (
+        isRegisteredUser() && resource.data.employeeId == getUserData().get('employeeId', '')
+      );
+      allow create: if isValidId(mutationId) && isAdmin() &&
+                    isValidEmployeeMutation(incoming(), mutationId) &&
+                    incoming().status == 'Menunggu Persetujuan' &&
+                    incoming().appliedToEmployee == false &&
+                    incoming().createdByUid == request.auth.uid &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time &&
+                    exists(/databases/$(database)/documents/employees/$(incoming().employeeId));
+      allow update: if isValidId(mutationId) && isAdmin() &&
+                    isValidEmployeeMutation(incoming(), mutationId) &&
+                    incoming().mutationId == existing().mutationId &&
+                    incoming().employeeId == existing().employeeId &&
+                    incoming().employeeNip == existing().employeeNip &&
+                    incoming().createdByUid == existing().createdByUid &&
+                    incoming().createdByEmail == existing().createdByEmail &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time;
       allow delete: if false;
     }
   }

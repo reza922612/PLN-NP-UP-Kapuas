@@ -23,6 +23,7 @@ import {
   Car,
   FileCheck2,
   X,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import PlnNpLogo from '../common/PlnNpLogo';
@@ -63,6 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       items: [
         { id: 'employees', label: 'Data Pegawai', icon: Users },
         { id: 'add-employee', label: 'Input Pegawai', icon: UserPlus, hidden: role === 'viewer' },
+        { id: 'mutations', label: 'Mutasi Unit & Jabatan', icon: ArrowLeftRight },
         { id: 'sppd', label: 'Pengajuan SPPD', icon: Plane },
         { id: 'letter-numbers', label: 'Nomor Surat & BA', icon: FileCheck2 },
         { id: 'vehicles', label: 'Kendaraan Dinas', icon: Car },

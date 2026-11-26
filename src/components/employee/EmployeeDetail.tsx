@@ -21,6 +21,10 @@ import {
   Briefcase,
   BellRing,
   Users,
+  ArrowLeftRight,
+  Clock,
+  Plus,
+  ArrowRight,
 } from 'lucide-react';
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -33,6 +37,9 @@ import { evaluateCertificationStatus } from '../../lib/certificationStatus';
 import { SectionCard } from '../common/DashboardUI';
 import { StoredImage, StoredFileLink } from '../common/StoredFileUI';
 import DocumentScannerModal from './DocumentScannerModal';
+import MutationFormModal from './MutationFormModal';
+import { useMutations } from '../../hooks/useMutations';
+import { MUTATION_STATUS_META, inferMutationTypeBadge } from '../../data/mutationConstants';
 
 interface EmployeeDetailProps {
   employee: Employee;
@@ -42,7 +49,7 @@ interface EmployeeDetailProps {
   onUpdateEmployee?: (id: string, data: Partial<Employee>) => Promise<void>;
 }
 
-type DetailTab = 'general' | 'legal' | 'family' | 'competency' | 'documents';
+type DetailTab = 'general' | 'legal' | 'family' | 'competency' | 'mutations' | 'documents';
 
 const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
   employee,
@@ -56,10 +63,15 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
   const [copied, setCopied] = useState(false);
   const [syncReady, setSyncReady] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isMutationModalOpen, setIsMutationModalOpen] = useState(false);
   const [scanToast, setScanToast] = useState<string | null>(null);
   const qrCanvasRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
+  const { mutations: employeeMutations, submitMutation } = useMutations({
+    enabled: Boolean(employee.id),
+    employeeIdFilter: employee.id,
+  });
 
   const verificationUrl = employee.id
     ? `${window.location.origin}/?verify=${encodeURIComponent(employee.id)}`
@@ -136,6 +148,7 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
     { id: 'legal', label: 'Pendidikan & Legal', icon: ShieldCheck },
     { id: 'family', label: `Data Keluarga (${employee.familyMembers?.length || 0})`, icon: Users },
     { id: 'competency', label: 'Pelatihan & Sertifikasi', icon: Award },
+    { id: 'mutations', label: `Riwayat Mutasi (${employeeMutations.length})`, icon: ArrowLeftRight },
     { id: 'documents', label: 'Arsip Scan & Dokumen', icon: FileText },
   ];
 
@@ -171,6 +184,11 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
               >
                 {employee.status}
               </span>
+              {employee.placementStatus === 'Mutasi Keluar' && (
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                  Mutasi Keluar
+                </span>
+              )}
             </div>
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
               NIP {employee.nip} · {employee.unitPelaksana}
@@ -428,11 +446,19 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
                         }
                       />
                       <InfoItem label="Unit Pelaksana" value={employee.unitPelaksana} />
-                      <InfoItem label="Sub Unit" value={employee.subUnit} />
+                      <InfoItem label="Bidang / Sub Unit" value={employee.bidang || employee.subUnit} />
                       <InfoItem label="Perusahaan" value={employee.perusahaan} />
                       <InfoItem label="Person Grade" value={employee.personGrade} />
                       <InfoItem label="Position Grade" value={employee.positionGrade} />
                       <InfoItem label="Status Pegawai" value={employee.status} />
+                      <InfoItem
+                        label="Status Penempatan"
+                        value={
+                          employee.placementStatus === 'Mutasi Keluar'
+                            ? `Mutasi Keluar${employee.externalEntity ? ` (${employee.externalEntity})` : ''}`
+                            : 'Aktif Bertugas'
+                        }
+                      />
                     </div>
                   </div>
 
@@ -646,6 +672,142 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
                 </div>
               )}
 
+              {activeSection === 'mutations' && (
+                <div className="space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div>
+                      <h4 className="text-xs font-extrabold text-[#0072BC] dark:text-[#72C8F1] uppercase tracking-wider flex items-center gap-2">
+                        <ArrowLeftRight size={14} /> Jejak Pergerakan &amp; Riwayat Mutasi Pegawai
+                      </h4>
+                      <p className="text-[11px] text-slate-400 font-medium mt-0.5 font-mono">
+                        Penelusuran permanen NIP {employee.nip} · Penempatan Saat Ini: {employee.unitPelaksana}
+                      </p>
+                    </div>
+                    {isAdmin && employee.id && (
+                      <button
+                        type="button"
+                        onClick={() => setIsMutationModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0072BC] text-white text-xs font-bold hover:bg-[#173B65] transition-colors shrink-0"
+                      >
+                        <Plus size={14} />
+                        Ajukan Mutasi
+                      </button>
+                    )}
+                  </div>
+
+                  {employeeMutations.length > 0 ? (
+                    <div className="relative pl-6 space-y-5 before:content-[''] before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-700">
+                      {employeeMutations.map((mut) => {
+                        const statusMeta =
+                          MUTATION_STATUS_META[mut.status] ||
+                          MUTATION_STATUS_META['Menunggu Persetujuan'];
+                        const effYear = (mut.effectiveDate || '').slice(0, 4) || '-';
+                        return (
+                          <div key={mut.id} className="relative">
+                            <span
+                              className={cn(
+                                'absolute -left-6 top-1.5 w-5 h-5 rounded-full border-2 border-white dark:border-[#0E1A2E] flex items-center justify-center shadow-xs',
+                                mut.status === 'Diterapkan'
+                                  ? 'bg-emerald-500 text-white'
+                                  : mut.status === 'Ditolak'
+                                  ? 'bg-red-500 text-white'
+                                  : 'bg-[#0072BC] text-white'
+                              )}
+                            >
+                              <Clock size={10} />
+                            </span>
+
+                            <div className="p-4 rounded-2xl bg-[#F4F8FB] dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-xs font-extrabold text-[#173B65] dark:text-white">
+                                    {effYear} – {mut.unitKerjaBaru} – {mut.jabatanBaru}
+                                  </p>
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Efektif: <strong>{formatDate(mut.effectiveDate)}</strong> ·{' '}
+                                    {inferMutationTypeBadge(mut.jenisMutasi, mut.arahMutasi)} ·{' '}
+                                    {mut.kategoriMutasi}
+                                  </p>
+                                </div>
+                                <span
+                                  className={cn(
+                                    'px-2 py-0.5 rounded-md text-[10px] font-extrabold shrink-0',
+                                    statusMeta.badgeClass
+                                  )}
+                                >
+                                  {statusMeta.label}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] bg-white dark:bg-[#0E1A2E] p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                                <div className="space-y-0.5">
+                                  <p className="text-[10px] font-bold uppercase text-slate-400">
+                                    Sebelumnya
+                                  </p>
+                                  <p className="font-semibold text-slate-600 dark:text-slate-300">
+                                    {mut.jabatanSebelumnya}
+                                  </p>
+                                  <p className="text-slate-400">
+                                    {mut.unitKerjaSebelumnya} · {mut.bidangSebelumnya}
+                                  </p>
+                                </div>
+                                <div className="space-y-0.5">
+                                  <p className="text-[10px] font-bold uppercase text-[#0072BC] dark:text-[#72C8F1] flex items-center gap-1">
+                                    <ArrowRight size={11} /> Penempatan Baru
+                                  </p>
+                                  <p className="font-bold text-[#173B65] dark:text-slate-100">
+                                    {mut.jabatanBaru}
+                                  </p>
+                                  <p className="text-[#0072BC] dark:text-[#72C8F1] font-medium">
+                                    {mut.unitKerjaBaru} · {mut.bidangBaru}
+                                  </p>
+                                  {mut.entitasEksternal && (
+                                    <p className="text-amber-600 dark:text-amber-400 font-semibold">
+                                      Entitas: {mut.entitasEksternal}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400 pt-1">
+                                <div className="space-x-2">
+                                  <span className="font-mono font-bold text-[#173B65] dark:text-slate-200">
+                                    SK: {mut.nomorSk}
+                                  </span>
+                                  <span>· Tgl SK: {formatDate(mut.tanggalSk)}</span>
+                                  <span>
+                                    · Diproses: {mut.approvedByName || mut.createdByName}
+                                  </span>
+                                </div>
+                                {mut.dokumenPendukung?.url && (
+                                  <StoredFileLink
+                                    url={mut.dokumenPendukung.url}
+                                    fileName={mut.dokumenPendukung.name}
+                                    className="inline-flex items-center gap-1 text-[#0072BC] dark:text-[#72C8F1] font-bold hover:underline"
+                                  >
+                                    <FileText size={12} />
+                                    Dokumen SK
+                                  </StoredFileLink>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-6 rounded-2xl bg-[#F4F8FB] dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 text-center space-y-2">
+                      <p className="text-xs font-bold text-[#173B65] dark:text-slate-200">
+                        Belum ada riwayat perpindahan / mutasi tercatat untuk NIP {employee.nip}
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        Penempatan saat ini: {employee.unitPelaksana} · {employee.jabatanLengkap}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {activeSection === 'documents' && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
@@ -729,6 +891,20 @@ const EmployeeDetail: React.FC<EmployeeDetailProps> = ({
           isOpen={isScannerOpen}
           onClose={() => setIsScannerOpen(false)}
           onSaveScan={handleSaveScan}
+        />
+      )}
+
+      {isMutationModalOpen && (
+        <MutationFormModal
+          open={isMutationModalOpen}
+          onClose={() => setIsMutationModalOpen(false)}
+          employees={[employee]}
+          defaultEmployee={employee}
+          onSubmit={submitMutation}
+          onSuccess={(msg) => {
+            setScanToast(msg);
+            setTimeout(() => setScanToast(null), 5000);
+          }}
         />
       )}
     </div>

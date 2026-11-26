@@ -60,6 +60,12 @@ export interface Employee {
   pendidikanTerakhir: string;
   status: EmployeeStatus;
   perusahaan: CompanyName;
+  placementStatus?: 'Aktif' | 'Mutasi Keluar';
+  bidang?: string;
+  externalEntity?: string | null;
+  lastMutationId?: string | null;
+  lastMutationDate?: string | null;
+  lastMutationSkNumber?: string | null;
   photoUrl?: string;
   dossierUrl?: string;
   familyMembers?: FamilyMember[];
@@ -136,6 +142,7 @@ export interface OrgNode {
 export type ActivityAction = 'CREATE' | 'UPDATE' | 'DELETE';
 export type ActivityEntityType =
   | 'employee'
+  | 'mutation'
   | 'unit'
   | 'system'
   | 'sppd'
@@ -609,4 +616,81 @@ export interface LetterNumberRequest {
   createdAt: any;
   updatedAt: any;
 }
+
+export type MutationType = 'Internal' | 'Eksternal';
+export type ExternalMutationDirection = 'Masuk' | 'Keluar';
+export type MutationCategory =
+  | 'Mutasi Unit'
+  | 'Mutasi Jabatan'
+  | 'Mutasi Unit dan Jabatan';
+export type MutationApprovalStatus =
+  | 'Menunggu Persetujuan'
+  | 'Disetujui'
+  | 'Diterapkan'
+  | 'Ditolak';
+
+export interface MutationAttachment {
+  name: string;
+  url: string;
+  size?: number;
+  type?: string;
+  uploadedAt: string;
+}
+
+export interface MutationCorrectionEntry {
+  correctedAt: string;
+  correctedByUid: string;
+  correctedByName: string;
+  reason: string;
+  previousSummary: string;
+  newSummary: string;
+}
+
+export interface EmployeeMutation {
+  id?: string;
+  mutationId: string;
+  dedupeKey: string;
+  employeeId: string;
+  employeeNip: string;
+  employeeName: string;
+  jenisMutasi: MutationType;
+  arahMutasi?: ExternalMutationDirection | null;
+  subJenisMutasi: string;
+  kategoriMutasi: MutationCategory;
+  // Snapshot Before
+  jabatanSebelumnya: string;
+  bidangSebelumnya: string;
+  unitKerjaSebelumnya: string;
+  statusKepegawaianSebelumnya: EmployeeStatus;
+  perusahaanSebelumnya: string;
+  // Target After
+  jabatanBaru: string;
+  bidangBaru: string;
+  unitKerjaBaru: string;
+  statusKepegawaianBaru: EmployeeStatus;
+  entitasEksternal?: string | null;
+  // SK & Metadata
+  effectiveDate: string;
+  nomorSk: string;
+  tanggalSk: string;
+  alasanMutasi: string;
+  dokumenPendukung?: MutationAttachment | null;
+  // Workflow & Automation
+  status: MutationApprovalStatus;
+  appliedToEmployee: boolean;
+  appliedAt?: string | null;
+  rejectionReason?: string | null;
+  approvalNotes?: string | null;
+  approvedByUid?: string | null;
+  approvedByName?: string | null;
+  approvedAt?: string | null;
+  // Audit & Correction Trail
+  correctionHistory?: MutationCorrectionEntry[];
+  createdByUid: string;
+  createdByEmail: string;
+  createdByName: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
 

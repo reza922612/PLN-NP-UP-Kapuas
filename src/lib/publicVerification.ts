@@ -21,7 +21,9 @@ export async function syncPublicVerification(employeeId: string, employee: Parti
     status: employee.status || 'Pegawai Organik',
     perusahaan: clamp(employee.perusahaan, 256, 'PT PLN Nusantara Power'),
     photoUrl: employee.photoUrl ? clamp(employee.photoUrl, 1024) : null,
-    verifiedStatus: 'ACTIVE' as const,
+    verifiedStatus: (employee.placementStatus === 'Mutasi Keluar' ? 'INACTIVE' : 'ACTIVE') as
+      | 'ACTIVE'
+      | 'INACTIVE',
     updatedAt: serverTimestamp(),
   };
 

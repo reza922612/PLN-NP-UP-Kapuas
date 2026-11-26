@@ -52,6 +52,12 @@
         "pendidikanTerakhir": { "type": "string" },
         "status": { "type": "string", "enum": ["Pegawai Organik", "Pegawai Tugas Khusus", "Tenaga Alih Daya"] },
         "perusahaan": { "type": "string", "enum": ["PT PLN Nusantara Power", "PT PLN (Persero)", "PT PLN Paguntaka Cahaya Nusantara", "PT Mitra Karya Prima"] },
+        "placementStatus": { "type": "string", "enum": ["Aktif", "Mutasi Keluar"] },
+        "bidang": { "type": "string", "maxLength": 256 },
+        "externalEntity": { "type": "string", "maxLength": 256 },
+        "lastMutationId": { "type": "string", "maxLength": 128 },
+        "lastMutationDate": { "type": "string", "maxLength": 32 },
+        "lastMutationSkNumber": { "type": "string", "maxLength": 128 },
         "photoUrl": { "type": "string" },
         "dossierUrl": { "type": "string" },
         "familyMembers": { "type": "array", "description": "Daftar anggota keluarga pegawai" },
@@ -128,7 +134,7 @@
       "type": "object",
       "properties": {
         "action": { "type": "string", "enum": ["CREATE", "UPDATE", "DELETE"] },
-        "entityType": { "type": "string", "enum": ["employee", "unit", "system", "sppd", "knowledge", "publikasi", "vehicle", "letter_number"] },
+        "entityType": { "type": "string", "enum": ["employee", "mutation", "unit", "system", "sppd", "knowledge", "publikasi", "vehicle", "letter_number"] },
         "entityId": { "type": "string", "maxLength": 128 },
         "entityName": { "type": "string", "maxLength": 256 },
         "description": { "type": "string", "maxLength": 512 },
@@ -365,7 +371,8 @@
             "sop_doc",
             "regulasi_doc",
             "perdir_doc",
-            "publication_media"
+            "publication_media",
+            "mutation_doc"
           ]
         },
         "isPublic": { "type": "boolean" },
@@ -701,6 +708,61 @@
         "kodeSurat", "kodeKlasifikasi", "unitKode", "unitLabel", "tahun",
         "status", "whatsappStatus", "createdByUid", "createdByEmail", "createdAt", "updatedAt"
       ]
+    },
+    "EmployeeMutation": {
+      "title": "EmployeeMutation",
+      "description": "Immutable historical record and approval workflow of internal and external employee unit/position mutations",
+      "type": "object",
+      "properties": {
+        "mutationId": { "type": "string", "maxLength": 128 },
+        "dedupeKey": { "type": "string", "maxLength": 256 },
+        "employeeId": { "type": "string", "maxLength": 128 },
+        "employeeNip": { "type": "string", "maxLength": 64 },
+        "employeeName": { "type": "string", "maxLength": 256 },
+        "jenisMutasi": { "type": "string", "enum": ["Internal", "Eksternal"] },
+        "arahMutasi": { "type": "string", "enum": ["Masuk", "Keluar"] },
+        "subJenisMutasi": { "type": "string", "maxLength": 200 },
+        "kategoriMutasi": { "type": "string", "enum": ["Mutasi Unit", "Mutasi Jabatan", "Mutasi Unit dan Jabatan"] },
+        "jabatanSebelumnya": { "type": "string", "maxLength": 256 },
+        "bidangSebelumnya": { "type": "string", "maxLength": 256 },
+        "unitKerjaSebelumnya": { "type": "string", "maxLength": 256 },
+        "statusKepegawaianSebelumnya": { "type": "string", "enum": ["Pegawai Organik", "Pegawai Tugas Khusus", "Tenaga Alih Daya"] },
+        "perusahaanSebelumnya": { "type": "string", "maxLength": 256 },
+        "jabatanBaru": { "type": "string", "maxLength": 256 },
+        "bidangBaru": { "type": "string", "maxLength": 256 },
+        "unitKerjaBaru": { "type": "string", "maxLength": 256 },
+        "statusKepegawaianBaru": { "type": "string", "enum": ["Pegawai Organik", "Pegawai Tugas Khusus", "Tenaga Alih Daya"] },
+        "entitasEksternal": { "type": "string", "maxLength": 256 },
+        "effectiveDate": { "type": "string", "format": "date", "maxLength": 32 },
+        "nomorSk": { "type": "string", "maxLength": 128 },
+        "tanggalSk": { "type": "string", "format": "date", "maxLength": 32 },
+        "alasanMutasi": { "type": "string", "maxLength": 1000 },
+        "dokumenPendukung": { "type": "object" },
+        "status": { "type": "string", "enum": ["Menunggu Persetujuan", "Disetujui", "Diterapkan", "Ditolak"] },
+        "appliedToEmployee": { "type": "boolean" },
+        "appliedAt": { "type": "string", "maxLength": 64 },
+        "rejectionReason": { "type": "string", "maxLength": 512 },
+        "approvalNotes": { "type": "string", "maxLength": 512 },
+        "approvedByUid": { "type": "string", "maxLength": 128 },
+        "approvedByName": { "type": "string", "maxLength": 256 },
+        "approvedAt": { "type": "string", "maxLength": 64 },
+        "correctionHistory": { "type": "array" },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdByEmail": { "type": "string", "format": "email", "maxLength": 256 },
+        "createdByName": { "type": "string", "maxLength": 256 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "mutationId", "dedupeKey", "employeeId", "employeeNip", "employeeName",
+        "jenisMutasi", "subJenisMutasi", "kategoriMutasi",
+        "jabatanSebelumnya", "bidangSebelumnya", "unitKerjaSebelumnya",
+        "statusKepegawaianSebelumnya", "perusahaanSebelumnya",
+        "jabatanBaru", "bidangBaru", "unitKerjaBaru", "statusKepegawaianBaru",
+        "effectiveDate", "nomorSk", "tanggalSk", "alasanMutasi",
+        "status", "appliedToEmployee", "createdByUid", "createdByEmail", "createdByName",
+        "createdAt", "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -815,6 +877,10 @@
     "letter_number_requests/{letterId}": {
       "schema": "LetterNumberRequest",
       "description": "Official issued letter & Berita Acara numbering records and WhatsApp statuses"
+    },
+    "employee_mutations/{mutationId}": {
+      "schema": "EmployeeMutation",
+      "description": "Employee internal and external unit/position mutation workflow and permanent history"
     }
   }
 }

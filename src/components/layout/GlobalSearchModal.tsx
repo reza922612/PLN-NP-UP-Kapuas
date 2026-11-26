@@ -25,6 +25,11 @@ const NAV_SHORTCUTS = [
   { id: 'dashboard', label: 'Dashboard Overview', desc: 'Ringkasan KPI SDM & Pembangkit' },
   { id: 'employees', label: 'Data Pegawai', desc: 'Daftar lengkap, filter, dan ekspor CSV/Excel/PDF' },
   { id: 'add-employee', label: 'Input Pegawai', desc: 'Tambah profil pegawai baru', hideViewer: true },
+  {
+    id: 'mutations',
+    label: 'Mutasi Unit & Jabatan',
+    desc: 'Pengelolaan mutasi internal/eksternal, persetujuan SK & histori pergerakan',
+  },
   { id: 'sppd', label: 'Pengajuan SPPD', desc: 'Input & monitoring Surat Perjalanan Dinas' },
   {
     id: 'letter-numbers',

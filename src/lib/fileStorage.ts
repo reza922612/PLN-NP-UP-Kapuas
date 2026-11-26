@@ -22,7 +22,8 @@ export type FileCategory =
   | 'sop_doc'
   | 'regulasi_doc'
   | 'perdir_doc'
-  | 'publication_media';
+  | 'publication_media'
+  | 'mutation_doc';
 
 export interface UploadFileSmartOptions {
   file: File | Blob;

@@ -18,6 +18,7 @@ import {
   ArrowDown,
   Building2,
   Upload,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { formatDate, calculateAge, calculateTenure, cn } from '../../lib/utils';
 import { StoredImage } from '../common/StoredFileUI';
@@ -49,6 +50,7 @@ interface EmployeeListProps {
     rows: CsvEmployeeImportRow[],
     onProgress?: (progress: CsvImportProgress) => void
   ) => Promise<CsvImportResult>;
+  onOpenMutations?: () => void;
 }
 
 type SortField = 'fullName' | 'nip' | 'jabatanLengkap' | 'status' | 'tanggalPengangkatan';
@@ -61,10 +63,12 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
   onDelete,
   canDelete,
   onCsvImport,
+  onOpenMutations,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterUnit, setFilterUnit] = useState('All');
+  const [filterPlacement, setFilterPlacement] = useState('All');
   const [sortField, setSortField] = useState<SortField>('fullName');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -90,7 +94,9 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
         emp.unitPelaksana?.toLowerCase().includes(q);
       const matchesStatus = filterStatus === 'All' || emp.status === filterStatus;
       const matchesUnit = filterUnit === 'All' || emp.unitPelaksana === filterUnit;
-      return matchesSearch && matchesStatus && matchesUnit;
+      const placementVal = emp.placementStatus || 'Aktif';
+      const matchesPlacement = filterPlacement === 'All' || placementVal === filterPlacement;
+      return matchesSearch && matchesStatus && matchesUnit && matchesPlacement;
     });
 
     return [...filtered].sort((a, b) => {
@@ -99,7 +105,7 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
       const cmp = valA.localeCompare(valB);
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [employees, searchTerm, filterStatus, filterUnit, sortField, sortDir]);
+  }, [employees, searchTerm, filterStatus, filterUnit, filterPlacement, sortField, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filteredAndSorted.length / itemsPerPage));
   const safePage = Math.min(currentPage, totalPages);
@@ -209,6 +215,16 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
         badge={`${filteredAndSorted.length} Pegawai`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {onOpenMutations && (
+              <button
+                type="button"
+                onClick={onOpenMutations}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#173B65] text-white rounded-xl text-xs font-bold hover:bg-[#0072BC] transition-colors shadow-xs"
+              >
+                <ArrowLeftRight size={14} className="text-[#F9D423]" />
+                Mutasi Unit &amp; Jabatan
+              </button>
+            )}
             {onCsvImport && (
               <button
                 type="button"
@@ -309,6 +325,22 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
                     {u}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-[#0E1A2E] rounded-xl border border-slate-200 dark:border-slate-700">
+              <ArrowLeftRight size={14} className="text-[#0072BC] dark:text-[#72C8F1]" />
+              <select
+                value={filterPlacement}
+                onChange={(e) => {
+                  setFilterPlacement(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent text-xs font-bold text-[#173B65] dark:text-slate-200 outline-none"
+              >
+                <option value="All" className="dark:bg-slate-900">Semua Penempatan</option>
+                <option value="Aktif" className="dark:bg-slate-900">Aktif Bertugas</option>
+                <option value="Mutasi Keluar" className="dark:bg-slate-900">Mutasi Keluar</option>
               </select>
             </div>
           </div>
@@ -426,18 +458,25 @@ const EmployeeList: React.FC<EmployeeListProps> = ({
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="space-y-1">
-                          <span
-                            className={cn(
-                              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide',
-                              emp.status === 'Pegawai Organik'
-                                ? 'bg-[#EAF6FC] dark:bg-[#0072BC]/25 text-[#0072BC] dark:text-[#72C8F1]'
-                                : emp.status === 'Pegawai Tugas Khusus'
-                                ? 'bg-amber-50 dark:bg-[#F9D423]/15 text-amber-700 dark:text-[#F9D423]'
-                                : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span
+                              className={cn(
+                                'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide',
+                                emp.status === 'Pegawai Organik'
+                                  ? 'bg-[#EAF6FC] dark:bg-[#0072BC]/25 text-[#0072BC] dark:text-[#72C8F1]'
+                                  : emp.status === 'Pegawai Tugas Khusus'
+                                  ? 'bg-amber-50 dark:bg-[#F9D423]/15 text-amber-700 dark:text-[#F9D423]'
+                                  : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                              )}
+                            >
+                              {emp.status}
+                            </span>
+                            {emp.placementStatus === 'Mutasi Keluar' && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                Mutasi Keluar
+                              </span>
                             )}
-                          >
-                            {emp.status}
-                          </span>
+                          </div>
                           <p className="text-[10px] font-medium text-slate-400 truncate max-w-[170px]">
                             {emp.perusahaan}
                           </p>
